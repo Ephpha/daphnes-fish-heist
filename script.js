@@ -26,6 +26,13 @@ const tankPlatform = { x: 900, y: 410, w: 270, h: 96 };
 const tank = { x: 975, y: 165, w: 180, h: 240 };
 const grabZone = { x: 885, y: 218, w: 270, h: 190 };
 const securityCamera = { x: 705, y: 86, w: 68, h: 34 };
+const cameraZones = [
+  { name: "box", x: 150 },
+  { name: "mug", x: 430 },
+  { name: "keys", x: 650 },
+  { name: "spill", x: 815 },
+  { name: "tank", x: 1045 }
+];
 const keys = { left: false, right: false, jump: false, grab: false };
 
 let state = "start";
@@ -118,7 +125,7 @@ function resetGame(startPlaying = true) {
   warning = null;
   messageTimer = 0;
   postFishBonusReady = false;
-  nextOwnerCheck = randomBetween(7.5, 11);
+  nextOwnerCheck = randomCameraDelay();
   ui.gameOverScreen.classList.remove("active");
   updateUi();
   if (startPlaying) {
@@ -192,16 +199,43 @@ function grabFish() {
 
 function triggerCamera(reason = "motion") {
   if (warning || state !== "playing") return;
-  const duration = randomBetween(1.4, 2.5) - (stats.suspicion / 100) * 0.35;
+  const difficulty = cameraDifficulty();
+  const duration = randomBetween(1.8, 2.9) - difficulty * 0.55 - (stats.suspicion / 100) * 0.25;
+  const zone = chooseCameraZone(reason);
   warning = {
     timer: clamp(duration, 1.1, 2.5),
     duration: clamp(duration, 1.1, 2.5),
     active: 0,
-    beamX: securityCamera.x + securityCamera.w / 2,
-    reason
+    activeDuration: randomBetween(1.1, 1.7) + difficulty * 1.15,
+    beamX: zone.x,
+    targetX: zone.x,
+    reason,
+    zone: zone.name,
+    width: 48 + difficulty * 20
   };
-  showMessage(reason === "noise" ? "Noise triggered the camera!" : "Camera light warming up!", true, warning.timer);
+  showMessage(reason === "motion" ? "Camera light warming up!" : "Noise triggered the camera!", true, warning.timer);
   beep(220, 0.12, "square", 0.04);
+}
+
+function cameraDifficulty() {
+  return clamp(stats.score / 1600, 0, 1);
+}
+
+function randomCameraDelay() {
+  const difficulty = cameraDifficulty();
+  return randomBetween(8.5 - difficulty * 3.2, 13 - difficulty * 4.2);
+}
+
+function chooseCameraZone(reason) {
+  if (reason === "mug") return cameraZones.find((zone) => zone.name === "mug");
+  if (reason === "keys") return cameraZones.find((zone) => zone.name === "keys");
+  if (reason === "spill") return cameraZones.find((zone) => zone.name === "spill");
+  if (reason === "tank") return cameraZones.find((zone) => zone.name === "tank");
+
+  const candidates = stats.score < 450
+    ? cameraZones.filter((zone) => zone.name === "mug" || zone.name === "keys" || zone.name === "spill")
+    : cameraZones.filter((zone) => zone.name !== "box");
+  return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
 function resolveCameraCheck(success = true) {
@@ -210,7 +244,7 @@ function resolveCameraCheck(success = true) {
     addSuspicion(-10);
     showMessage("Camera sees an empty counter...", false, 1.6);
     beep(520, 0.1, "triangle", 0.04);
-    nextOwnerCheck = randomBetween(7.2, 10.5) - (stats.suspicion / 100) * 2.4;
+    nextOwnerCheck = randomCameraDelay() - (stats.suspicion / 100) * 1.2;
   } else if (!success) {
     gameOver();
     return;
@@ -270,7 +304,7 @@ function update(dt) {
       player.slowed = 1.1;
       if (obstacle.cooldown <= 0) {
         addSuspicion(4);
-        triggerCamera("noise");
+        if (Math.random() < 0.5 + cameraDifficulty() * 0.25) triggerCamera("spill");
         obstacle.cooldown = 1.2;
       }
       continue;
@@ -282,12 +316,12 @@ function update(dt) {
         player.vx = -player.facing * 160;
         player.x += -player.facing * 12;
         showMessage("Tiny mug bump. Suspicious.", true, 1);
-        triggerCamera("noise");
+        if (Math.random() < 0.65 + cameraDifficulty() * 0.25) triggerCamera("mug");
         beep(260, 0.08, "square", 0.04);
       } else if (obstacle.type === "keys") {
         addSuspicion(10);
         showMessage("Jingly evidence!", true, 1);
-        triggerCamera("noise");
+        if (Math.random() < 0.75 + cameraDifficulty() * 0.2) triggerCamera("keys");
         beep(480, 0.05, "square", 0.035);
       }
       obstacle.cooldown = 1.1;
@@ -319,7 +353,7 @@ function update(dt) {
 
   if (!warning) {
     nextOwnerCheck -= dt * (1 + stats.suspicion / 85);
-    if (nextOwnerCheck <= 0) triggerCamera("motion");
+    if (nextOwnerCheck <= 0) triggerCamera(nearTank() ? "tank" : "motion");
   } else {
     updateCameraCheck(dt);
   }
@@ -333,16 +367,14 @@ function updateCameraCheck(dt) {
 
   if (warning.timer <= 0) {
     warning.active += dt;
-    const scanWidth = 910;
-    const start = 190;
-    warning.beamX = start + ((Math.sin(warning.active * 1.55) + 1) / 2) * scanWidth;
+    warning.beamX = warning.targetX + Math.sin(warning.active * (2.4 + cameraDifficulty() * 1.8)) * (14 + cameraDifficulty() * 16);
 
     if (cameraSeesDaphne()) {
       resolveCameraCheck(false);
       return;
     }
 
-    if (warning.active > 4.6) {
+    if (warning.active > warning.activeDuration) {
       resolveCameraCheck(true);
     }
   }
@@ -357,7 +389,7 @@ function cameraSeesDaphne() {
   const cameraY = securityCamera.y + securityCamera.h;
   const progress = clamp((py - cameraY) / (groundY - cameraY), 0, 1);
   const beamCenter = cameraX + (warning.beamX - cameraX) * progress;
-  const halfWidth = 34 + progress * 28;
+  const halfWidth = warning.width * (0.55 + progress * 0.55);
   return Math.abs(px - beamCenter) < halfWidth;
 }
 
@@ -684,14 +716,15 @@ function drawCameraLight(t) {
   ctx.fillStyle = active ? "rgba(255, 232, 95, 0.32)" : "rgba(255, 232, 95, 0.16)";
   ctx.beginPath();
   ctx.moveTo(cameraX - 12, cameraY);
-  ctx.lineTo(beamX - 76, groundY);
-  ctx.lineTo(beamX + 76, groundY);
+  const floorWidth = warning.width * 2.2;
+  ctx.lineTo(beamX - floorWidth, groundY);
+  ctx.lineTo(beamX + floorWidth, groundY);
   ctx.lineTo(cameraX + 12, cameraY);
   ctx.closePath();
   ctx.fill();
 
   if (active) {
-    pixelRect(beamX - 70, groundY - 8, 140, 8, "rgba(255, 232, 95, 0.35)");
+    pixelRect(beamX - floorWidth + 8, groundY - 8, floorWidth * 2 - 16, 8, "rgba(255, 232, 95, 0.35)");
   }
 
   ctx.fillStyle = "rgba(255, 250, 242, 0.92)";
