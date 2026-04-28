@@ -21,15 +21,16 @@ const W = canvas.width;
 const H = canvas.height;
 const groundY = 505;
 const safeZone = { x: 34, y: 390, w: 170, h: 120 };
-const tankPlatform = { x: 920, y: 420, w: 250, h: 86 };
-const tank = { x: 995, y: 205, w: 150, h: 210 };
-const grabZone = { x: 900, y: 240, w: 245, h: 180 };
+const tankPlatform = { x: 900, y: 410, w: 270, h: 96 };
+const tank = { x: 975, y: 165, w: 180, h: 240 };
+const grabZone = { x: 885, y: 218, w: 270, h: 190 };
 const keys = { left: false, right: false, jump: false, grab: false };
 
 let state = "start";
 let lastTime = 0;
 let messageTimer = 0;
 let warning = null;
+let girlfriend = null;
 let nextOwnerCheck = 0;
 let postFishBonusReady = false;
 let audioCtx = null;
@@ -100,9 +101,9 @@ function buildObstacles() {
 
 function buildFish() {
   return Array.from({ length: 5 }, (_, i) => ({
-    x: tank.x + 30 + i * 23,
-    y: tank.y + 70 + (i % 2) * 42,
-    speed: randomBetween(12, 24),
+    x: tank.x + 44 + i * 24,
+    y: tank.y + 88 + (i % 2) * 48,
+    speed: randomBetween(6, 12),
     phase: randomBetween(0, Math.PI * 2),
     color: ["#f05f5f", "#f5ba45", "#7f63d9", "#2f9f9b", "#ef7da8"][i]
   }));
@@ -114,6 +115,7 @@ function resetGame(startPlaying = true) {
   fish = buildFish();
   stats = { fish: 0, score: 0, suspicion: 0 };
   warning = null;
+  girlfriend = null;
   messageTimer = 0;
   postFishBonusReady = false;
   nextOwnerCheck = randomBetween(7.5, 11);
@@ -192,26 +194,38 @@ function grabFish() {
 function startOwnerWarning() {
   const duration = randomBetween(2.4, 3.8) - (stats.suspicion / 100) * 0.55;
   warning = { timer: clamp(duration, 1.8, 3.8), sweep: 0 };
+  girlfriend = {
+    x: W + 54,
+    y: groundY - 158,
+    w: 54,
+    h: 158,
+    speed: 92 + stats.suspicion * 0.45,
+    step: 0,
+    active: false,
+    leaving: false
+  };
   showMessage("Girlfriend footsteps! Hide in the box!", true, warning.timer);
   beep(180, 0.18, "sawtooth", 0.04);
 }
 
-function resolveOwnerCheck() {
+function resolveOwnerCheck(success = true) {
   if (inSafeZone()) {
     addScore(50);
     addSuspicion(-10);
     showMessage("She sees only a perfect little angel...", false, 1.6);
     beep(520, 0.1, "triangle", 0.04);
     nextOwnerCheck = randomBetween(7.2, 10.5) - (stats.suspicion / 100) * 2.4;
-  } else {
+  } else if (!success) {
     gameOver();
+    return;
   }
   warning = null;
+  girlfriend = null;
 }
 
 function gameOver() {
   state = "gameover";
-  warning = { timer: 0, sweep: 1 };
+  warning = null;
   if (stats.score > bestScore) {
     bestScore = stats.score;
     localStorage.setItem(saveKey, String(bestScore));
@@ -287,26 +301,63 @@ function update(dt) {
   }
 
   if (inSafeZone()) {
-    addSuspicion(-5 * dt);
+    addSuspicion(-6 * dt);
     if (postFishBonusReady) {
       addScore(25);
       postFishBonusReady = false;
       showMessage("Fish hidden. Daphne is innocent.", false, 1.3);
     }
   } else if (!nearTank()) {
-    addSuspicion(-1.2 * dt);
+    const safeCenter = safeZone.x + safeZone.w / 2;
+    const maxDistance = tank.x - safeCenter;
+    const distanceFromSafe = Math.abs((player.x + player.w / 2) - safeCenter);
+    const safeCloseness = 1 - clamp(distanceFromSafe / maxDistance, 0, 1);
+    addSuspicion(-(1.1 + safeCloseness * 3.4) * dt);
   }
 
   if (!warning) {
     nextOwnerCheck -= dt * (1 + stats.suspicion / 85);
     if (nextOwnerCheck <= 0) startOwnerWarning();
   } else {
-    warning.timer -= dt;
-    warning.sweep = 1 - clamp(warning.timer / 3.8, 0, 1);
-    if (warning.timer <= 0) resolveOwnerCheck();
+    updateGirlfriendCheck(dt);
   }
 
   updateUi();
+}
+
+function updateGirlfriendCheck(dt) {
+  warning.timer -= dt;
+  warning.sweep = 1 - clamp(warning.timer / 3.8, 0, 1);
+
+  if (inSafeZone()) {
+    if (girlfriend) girlfriend.leaving = true;
+    resolveOwnerCheck(true);
+    return;
+  }
+
+  if (!girlfriend) return;
+
+  if (warning.timer <= 0) girlfriend.active = true;
+
+  if (girlfriend.active) {
+    girlfriend.step += dt * 8;
+    const targetX = player.x + player.w / 2;
+    const direction = girlfriend.leaving ? 1 : Math.sign(targetX - girlfriend.x);
+    girlfriend.x += direction * girlfriend.speed * dt;
+
+    const daphneCenter = player.x + player.w / 2;
+    const closeEnough = Math.abs((girlfriend.x + girlfriend.w / 2) - daphneCenter) < 58;
+    const sameLevel = Math.abs((girlfriend.y + girlfriend.h) - (player.y + player.h)) < 120;
+
+    if (closeEnough && sameLevel) {
+      resolveOwnerCheck(false);
+      return;
+    }
+
+    if (girlfriend.x < safeZone.x + safeZone.w && !inSafeZone()) {
+      resolveOwnerCheck(false);
+    }
+  }
 }
 
 function landOnSurfaces(dt) {
@@ -345,6 +396,7 @@ function drawScene(t) {
   drawTank(t);
   drawObstacles(t);
   drawDaphne(t);
+  drawGirlfriend(t);
   drawPrompts();
   drawGirlfriendCue(t);
 }
@@ -365,6 +417,15 @@ function drawRoom(t) {
 
   ctx.fillStyle = "#2c2e36";
   drawRoundedRect(360, 104, 300, 150, 7);
+  ctx.strokeStyle = "#4d403a";
+  ctx.lineWidth = 12;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(510, 96);
+  ctx.lineTo(510, 72);
+  ctx.stroke();
+  ctx.fillStyle = "#806455";
+  drawRoundedRect(408, 69, 204, 14, 5);
   ctx.fillStyle = "#11131a";
   drawRoundedRect(373, 116, 274, 126, 5);
   ctx.fillStyle = "rgba(67, 184, 190, 0.28)";
@@ -378,8 +439,10 @@ function drawRoom(t) {
   ctx.fillStyle = "rgba(255,255,255,0.12)";
   ctx.fillRect(410, 132, 58, 92);
   ctx.fillStyle = "#2c2e36";
-  ctx.fillRect(496, 254, 28, 28);
-  ctx.fillRect(450, 278, 120, 10);
+  ctx.fillRect(496, 254, 28, 24);
+  ctx.fillRect(438, 278, 144, 12);
+  ctx.fillStyle = "#765945";
+  drawRoundedRect(388, 290, 246, 30, 5);
 
   ctx.fillStyle = "rgba(108,74,55,0.32)";
   ctx.fillRect(730, 95, 150, 18);
@@ -469,8 +532,8 @@ function drawTank(t) {
   ctx.fillRect(tank.x + 14, tank.y + tank.h - 28, tank.w - 28, 20);
 
   for (const f of fish) {
-    const x = f.x + Math.sin(t * 0.001 * f.speed + f.phase) * 24;
-    const y = f.y + Math.cos(t * 0.002 + f.phase) * 6;
+    const x = f.x + Math.sin(t * 0.001 * f.speed + f.phase) * 14;
+    const y = f.y + Math.cos(t * 0.0012 + f.phase) * 5;
     ctx.fillStyle = f.color;
     ctx.beginPath();
     ctx.ellipse(x, y, 15, 8, 0, 0, Math.PI * 2);
@@ -493,6 +556,72 @@ function drawTank(t) {
     ctx.arc(tank.x + 38 + i * 22, tank.y + 160 - ((t * 0.035 + i * 19) % 110), 4, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+function drawGirlfriend(t) {
+  if (!girlfriend) return;
+
+  const x = girlfriend.x;
+  const y = girlfriend.y;
+  const step = Math.sin(girlfriend.step) * 5;
+
+  ctx.save();
+  ctx.translate(x + girlfriend.w / 2, y + girlfriend.h);
+  ctx.scale(girlfriend.leaving ? -1 : 1, 1);
+  ctx.translate(-(x + girlfriend.w / 2), -(y + girlfriend.h));
+
+  ctx.fillStyle = "rgba(43, 33, 28, 0.16)";
+  ctx.beginPath();
+  ctx.ellipse(x + 27, y + girlfriend.h - 2, 28, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#365d7f";
+  ctx.lineWidth = 9;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(x + 18, y + 104);
+  ctx.lineTo(x + 15 + step, y + 150);
+  ctx.moveTo(x + 36, y + 104);
+  ctx.lineTo(x + 39 - step, y + 150);
+  ctx.stroke();
+
+  ctx.fillStyle = "#6fb0cf";
+  drawRoundedRect(x + 10, y + 58, 34, 56, 8);
+
+  ctx.strokeStyle = "#f1d1b7";
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.moveTo(x + 11, y + 66);
+  ctx.lineTo(x - 2, y + 94 + step);
+  ctx.moveTo(x + 43, y + 66);
+  ctx.lineTo(x + 56, y + 92 - step);
+  ctx.stroke();
+
+  ctx.fillStyle = "#f1d1b7";
+  ctx.beginPath();
+  ctx.arc(x + 27, y + 36, 24, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#f2cf52";
+  ctx.beginPath();
+  ctx.arc(x + 27, y + 31, 27, Math.PI * 0.94, Math.PI * 2.06);
+  ctx.fill();
+  ctx.fillRect(x + 5, y + 33, 10, 42);
+  ctx.fillRect(x + 39, y + 33, 10, 42);
+
+  ctx.fillStyle = "#5ba1d1";
+  ctx.beginPath();
+  ctx.ellipse(x + 19, y + 37, 3.4, 4.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + 35, y + 37, 3.4, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#5b352c";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x + 28, y + 46, 9, 0.1, Math.PI - 0.1);
+  ctx.stroke();
+
+  ctx.restore();
 }
 
 function drawObstacles(t) {
@@ -645,10 +774,10 @@ function drawPrompts() {
   if (state !== "playing") return;
   if (nearTank()) {
     ctx.fillStyle = "rgba(255, 250, 242, 0.92)";
-    drawRoundedRect(810, 150, 290, 44, 8);
+    drawRoundedRect(790, 116, 310, 44, 8);
     ctx.fillStyle = "#2b211c";
     ctx.font = "900 22px system-ui";
-    ctx.fillText("Press E to grab fish", 838, 179);
+    ctx.fillText("Press E to grab fish", 820, 145);
   }
   if (inSafeZone()) {
     ctx.fillStyle = "rgba(255, 250, 242, 0.86)";
@@ -662,13 +791,13 @@ function drawPrompts() {
 function drawGirlfriendCue(t) {
   if (!warning) return;
   const amount = warning.timer <= 0 ? 1 : warning.sweep;
-  ctx.fillStyle = `rgba(58, 36, 30, ${0.05 + amount * 0.12})`;
+  ctx.fillStyle = `rgba(58, 36, 30, ${0.03 + amount * 0.08})`;
   ctx.fillRect(0, 0, W, H);
 
   const doorX = W - 78;
   ctx.fillStyle = "#5f3d31";
   ctx.fillRect(doorX, 120, 78, 300);
-  ctx.fillStyle = `rgba(255, 232, 166, ${0.24 + amount * 0.28})`;
+  ctx.fillStyle = `rgba(255, 232, 166, ${0.18 + amount * 0.2})`;
   ctx.fillRect(doorX + 6, 132, 18 + amount * 34, 276);
   ctx.fillStyle = "#3b2722";
   ctx.fillRect(doorX + 54 - amount * 24, 132, 24, 276);
