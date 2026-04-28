@@ -2,7 +2,7 @@
 
 A cozy browser-based 2D side-view arcade stealth game starring Daphne, a fluffy gray-and-white cat with a dangerous interest in betta fish.
 
-Steal fish from the tank, dodge countertop evidence, and hide in the cardboard box before the owner checks the room.
+Steal fish from the tank, dodge countertop evidence, and hide in the cardboard box before the wall camera catches Daphne.
 
 ## Controls
 

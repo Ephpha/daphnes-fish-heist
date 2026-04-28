@@ -25,13 +25,13 @@ const safeZone = { x: 34, y: 390, w: 170, h: 120 };
 const tankPlatform = { x: 900, y: 410, w: 270, h: 96 };
 const tank = { x: 975, y: 165, w: 180, h: 240 };
 const grabZone = { x: 885, y: 218, w: 270, h: 190 };
+const securityCamera = { x: 705, y: 86, w: 68, h: 34 };
 const keys = { left: false, right: false, jump: false, grab: false };
 
 let state = "start";
 let lastTime = 0;
 let messageTimer = 0;
 let warning = null;
-let girlfriend = null;
 let nextOwnerCheck = 0;
 let postFishBonusReady = false;
 let audioCtx = null;
@@ -116,7 +116,6 @@ function resetGame(startPlaying = true) {
   fish = buildFish();
   stats = { fish: 0, score: 0, suspicion: 0 };
   warning = null;
-  girlfriend = null;
   messageTimer = 0;
   postFishBonusReady = false;
   nextOwnerCheck = randomBetween(7.5, 11);
@@ -184,7 +183,6 @@ function grabFish() {
   addScore(100);
   addSuspicion(stats.fish > 1 && postFishBonusReady ? 20 : 15);
   postFishBonusReady = true;
-  warning = null;
   nextOwnerCheck = Math.min(nextOwnerCheck, randomBetween(4.3, 6.4));
   showMessage("Fish acquired. Back to the box!", false, 1.5);
   beep(740, 0.08, "sine", 0.05);
@@ -192,29 +190,25 @@ function grabFish() {
   updateUi();
 }
 
-function startOwnerWarning() {
-  const duration = randomBetween(2.4, 3.8) - (stats.suspicion / 100) * 0.55;
-  warning = { timer: clamp(duration, 1.8, 3.8), sweep: 0 };
-  girlfriend = {
-    x: W + 70,
-    y: groundY - 250,
-    w: 78,
-    h: 250,
-    speed: 92 + stats.suspicion * 0.45,
-    step: 0,
-    active: false,
-    leaving: false,
-    peeked: false
+function triggerCamera(reason = "motion") {
+  if (warning || state !== "playing") return;
+  const duration = randomBetween(1.4, 2.5) - (stats.suspicion / 100) * 0.35;
+  warning = {
+    timer: clamp(duration, 1.1, 2.5),
+    duration: clamp(duration, 1.1, 2.5),
+    active: 0,
+    beamX: securityCamera.x + securityCamera.w / 2,
+    reason
   };
-  showMessage("Girlfriend footsteps! Hide in the box!", true, warning.timer);
-  beep(180, 0.18, "sawtooth", 0.04);
+  showMessage(reason === "noise" ? "Noise triggered the camera!" : "Camera light warming up!", true, warning.timer);
+  beep(220, 0.12, "square", 0.04);
 }
 
-function resolveOwnerCheck(success = true) {
+function resolveCameraCheck(success = true) {
   if (inSafeZone()) {
     addScore(50);
     addSuspicion(-10);
-    showMessage("She sees only a perfect little angel...", false, 1.6);
+    showMessage("Camera sees an empty counter...", false, 1.6);
     beep(520, 0.1, "triangle", 0.04);
     nextOwnerCheck = randomBetween(7.2, 10.5) - (stats.suspicion / 100) * 2.4;
   } else if (!success) {
@@ -222,7 +216,6 @@ function resolveOwnerCheck(success = true) {
     return;
   }
   warning = null;
-  girlfriend = null;
 }
 
 function gameOver() {
@@ -237,7 +230,7 @@ function gameOver() {
   ui.finalBest.textContent = bestScore;
   ui.finalRank.textContent = rankFor(stats.fish);
   ui.gameOverScreen.classList.add("active");
-  showMessage("Your girlfriend caught Daphne mid-heist!", true, 1);
+  showMessage("Caught on camera!", true, 1);
   beep(120, 0.35, "square", 0.05);
   updateUi();
 }
@@ -275,6 +268,11 @@ function update(dt) {
 
     if (obstacle.type === "spill") {
       player.slowed = 1.1;
+      if (obstacle.cooldown <= 0) {
+        addSuspicion(4);
+        triggerCamera("noise");
+        obstacle.cooldown = 1.2;
+      }
       continue;
     }
 
@@ -284,10 +282,12 @@ function update(dt) {
         player.vx = -player.facing * 160;
         player.x += -player.facing * 12;
         showMessage("Tiny mug bump. Suspicious.", true, 1);
+        triggerCamera("noise");
         beep(260, 0.08, "square", 0.04);
       } else if (obstacle.type === "keys") {
         addSuspicion(10);
         showMessage("Jingly evidence!", true, 1);
+        triggerCamera("noise");
         beep(480, 0.05, "square", 0.035);
       }
       obstacle.cooldown = 1.1;
@@ -319,53 +319,46 @@ function update(dt) {
 
   if (!warning) {
     nextOwnerCheck -= dt * (1 + stats.suspicion / 85);
-    if (nextOwnerCheck <= 0) startOwnerWarning();
+    if (nextOwnerCheck <= 0) triggerCamera("motion");
   } else {
-    updateGirlfriendCheck(dt);
+    updateCameraCheck(dt);
   }
 
   updateUi();
 }
 
-function updateGirlfriendCheck(dt) {
+function updateCameraCheck(dt) {
   warning.timer -= dt;
-  warning.sweep = 1 - clamp(warning.timer / 3.8, 0, 1);
+  warning.sweep = 1 - clamp(warning.timer / warning.duration, 0, 1);
 
-  if (!girlfriend) return;
+  if (warning.timer <= 0) {
+    warning.active += dt;
+    const scanWidth = 910;
+    const start = 190;
+    warning.beamX = start + ((Math.sin(warning.active * 1.55) + 1) / 2) * scanWidth;
 
-  if (warning.timer <= 0) girlfriend.active = true;
-
-  if (girlfriend.active) {
-    girlfriend.step += dt * 8;
-    const targetX = player.x + player.w / 2;
-    const direction = girlfriend.leaving ? 1 : Math.sign(targetX - girlfriend.x);
-    girlfriend.x += direction * girlfriend.speed * dt;
-
-    if (inSafeZone()) {
-      if (girlfriend.x < W - 320) {
-        girlfriend.peeked = true;
-        girlfriend.leaving = true;
-      }
-
-      if (girlfriend.peeked && girlfriend.x > W + 40) {
-        resolveOwnerCheck(true);
-      }
+    if (cameraSeesDaphne()) {
+      resolveCameraCheck(false);
       return;
     }
 
-    const daphneCenter = player.x + player.w / 2;
-    const closeEnough = Math.abs((girlfriend.x + girlfriend.w / 2) - daphneCenter) < 58;
-    const sameLevel = Math.abs((girlfriend.y + girlfriend.h) - (player.y + player.h)) < 120;
-
-    if (closeEnough && sameLevel) {
-      resolveOwnerCheck(false);
-      return;
-    }
-
-    if (girlfriend.x < safeZone.x + safeZone.w && !inSafeZone()) {
-      resolveOwnerCheck(false);
+    if (warning.active > 4.6) {
+      resolveCameraCheck(true);
     }
   }
+}
+
+function cameraSeesDaphne() {
+  if (inSafeZone()) return false;
+  const rect = playerRect();
+  const px = rect.x + rect.w / 2;
+  const py = rect.y + rect.h / 2;
+  const cameraX = securityCamera.x + securityCamera.w / 2;
+  const cameraY = securityCamera.y + securityCamera.h;
+  const progress = clamp((py - cameraY) / (groundY - cameraY), 0, 1);
+  const beamCenter = cameraX + (warning.beamX - cameraX) * progress;
+  const halfWidth = 34 + progress * 28;
+  return Math.abs(px - beamCenter) < halfWidth;
 }
 
 function landOnSurfaces(dt) {
@@ -407,8 +400,7 @@ function drawScene(t) {
   drawTank(t);
   drawObstacles(t);
   drawDaphne(t);
-  drawGirlfriendCue(t);
-  drawGirlfriend(t);
+  drawCameraLight(t);
   drawPrompts();
 }
 
@@ -455,6 +447,8 @@ function drawRoom(t) {
   ctx.fillStyle = "#765945";
   drawRoundedRect(388, 290, 246, 30, 5);
 
+  drawSecurityCamera(t);
+
   ctx.fillStyle = "rgba(108,74,55,0.32)";
   ctx.fillRect(730, 95, 150, 18);
   ctx.fillStyle = "#e7a96b";
@@ -466,6 +460,16 @@ function drawRoom(t) {
   ctx.beginPath();
   ctx.arc(950, 90, 55 + Math.sin(t * 0.001) * 3, 0, Math.PI * 2);
   ctx.fill();
+}
+
+function drawSecurityCamera(t) {
+  const blink = warning ? Math.sin(t * 0.012) > 0 : false;
+  pixelRect(securityCamera.x - 18, securityCamera.y - 18, 14, 42, "#6b4b3e");
+  pixelRect(securityCamera.x - 28, securityCamera.y - 20, 28, 10, "#806455");
+  pixelRect(securityCamera.x, securityCamera.y, securityCamera.w, securityCamera.h, "#2d3238");
+  pixelRect(securityCamera.x + 8, securityCamera.y + 8, 42, 18, "#16191e");
+  pixelRect(securityCamera.x + 48, securityCamera.y + 11, 12, 12, blink ? "#f04d45" : "#49c1be");
+  pixelRect(securityCamera.x + 8, securityCamera.y + securityCamera.h, 52, 8, "#1e2228");
 }
 
 function drawTankPlatform() {
@@ -555,54 +559,6 @@ function drawTank(t) {
   for (let i = 0; i < 5; i++) {
     pixelRect(tank.x + 38 + i * 22, tank.y + 160 - ((t * 0.035 + i * 19) % 110), 6, 6, "rgba(255,255,255,0.26)");
   }
-}
-
-function drawGirlfriend(t) {
-  if (!girlfriend) return;
-
-  const x = girlfriend.x;
-  const y = girlfriend.y;
-  const step = Math.sin(girlfriend.step) > 0 ? 6 : -6;
-  const dir = girlfriend.leaving ? -1 : 1;
-
-  ctx.save();
-  ctx.translate(x + girlfriend.w / 2, y + girlfriend.h);
-  ctx.scale(dir, 1);
-  ctx.translate(-(x + girlfriend.w / 2), -(y + girlfriend.h));
-
-  pixelRect(x - 3, y + 244, 86, 8, "rgba(43, 33, 28, 0.18)");
-
-  pixelRect(x + 17 + step, y + 142, 14, 88, "#255070");
-  pixelRect(x + 47 - step, y + 142, 14, 88, "#255070");
-  pixelRect(x + 10 + step, y + 226, 30, 10, "#25364f");
-  pixelRect(x + 38 - step, y + 226, 30, 10, "#25364f");
-
-  pixelRect(x + 19, y + 76, 40, 68, "#5ea5c8");
-  pixelRect(x + 13, y + 84, 10, 48, "#78b9d5");
-  pixelRect(x + 55, y + 84, 10, 48, "#488ead");
-  pixelRect(x + 27, y + 82, 12, 56, "rgba(255,255,255,0.18)");
-
-  pixelRect(x + 8, y + 88, 12, 74, "#f0d1bd");
-  pixelRect(x + 59, y + 88, 12, 74, "#f0d1bd");
-  pixelRect(x + 5, y + 154 + step, 14, 14, "#f0d1bd");
-  pixelRect(x + 60, y + 154 - step, 14, 14, "#f0d1bd");
-
-  pixelRect(x + 22, y + 22, 34, 44, "#f0d1bd");
-  pixelRect(x + 18, y + 10, 42, 18, "#e3c34d");
-  pixelRect(x + 14, y + 28, 14, 64, "#e3c34d");
-  pixelRect(x + 50, y + 28, 14, 64, "#d7b642");
-  pixelRect(x + 25, y + 16, 26, 12, "#f2d75d");
-  pixelRect(x + 20, y + 60, 10, 28, "#d7b642");
-  pixelRect(x + 50, y + 60, 10, 28, "#c7a83b");
-
-  pixelRect(x + 29, y + 40, 6, 6, "#4d9bd3");
-  pixelRect(x + 44, y + 40, 6, 6, "#4d9bd3");
-  pixelRect(x + 37, y + 50, 6, 4, "#c98676");
-  pixelRect(x + 32, y + 58, 16, 4, "#7b3f38");
-  pixelRect(x + 28, y + 36, 8, 3, "#705041");
-  pixelRect(x + 43, y + 36, 8, 3, "#705041");
-
-  ctx.restore();
 }
 
 function drawObstacles(t) {
@@ -714,41 +670,35 @@ function drawPrompts() {
   }
 }
 
-function drawGirlfriendCue(t) {
+function drawCameraLight(t) {
   if (!warning) return;
   const amount = warning.timer <= 0 ? 1 : warning.sweep;
-  ctx.fillStyle = `rgba(58, 36, 30, ${0.03 + amount * 0.08})`;
+  const active = warning.timer <= 0;
+  const cameraX = securityCamera.x + securityCamera.w / 2;
+  const cameraY = securityCamera.y + securityCamera.h;
+  const beamX = active ? warning.beamX : cameraX;
+
+  ctx.fillStyle = `rgba(58, 36, 30, ${0.02 + amount * 0.08})`;
   ctx.fillRect(0, 0, W, H);
 
-  const doorX = W - 78;
-  ctx.fillStyle = "#5f3d31";
-  ctx.fillRect(doorX, 120, 78, 300);
-  ctx.fillStyle = `rgba(255, 232, 166, ${0.18 + amount * 0.2})`;
-  ctx.fillRect(doorX + 6, 132, 18 + amount * 34, 276);
-  ctx.fillStyle = "#3b2722";
-  ctx.fillRect(doorX + 54 - amount * 24, 132, 24, 276);
-  ctx.fillStyle = "#f4c160";
+  ctx.fillStyle = active ? "rgba(255, 232, 95, 0.32)" : "rgba(255, 232, 95, 0.16)";
   ctx.beginPath();
-  ctx.arc(doorX + 58 - amount * 24, 270, 5, 0, Math.PI * 2);
+  ctx.moveTo(cameraX - 12, cameraY);
+  ctx.lineTo(beamX - 76, groundY);
+  ctx.lineTo(beamX + 76, groundY);
+  ctx.lineTo(cameraX + 12, cameraY);
+  ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = "rgba(255, 250, 242, 0.92)";
-  drawRoundedRect(820, 86, 274, 48, 8);
-  ctx.fillStyle = "#8f211b";
-  ctx.font = "900 22px system-ui";
-  ctx.fillText("footsteps in the hall", 848, 117);
-
-  ctx.fillStyle = `rgba(43, 33, 28, ${0.38 + Math.sin(t * 0.012) * 0.12})`;
-  for (let i = 0; i < 4; i++) {
-    const x = 1030 - i * 42;
-    const y = 458 - i * 8;
-    ctx.beginPath();
-    ctx.ellipse(x, y, 9, 18, -0.35, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(x + 18, y + 8, 9, 18, 0.35, 0, Math.PI * 2);
-    ctx.fill();
+  if (active) {
+    pixelRect(beamX - 70, groundY - 8, 140, 8, "rgba(255, 232, 95, 0.35)");
   }
+
+  ctx.fillStyle = "rgba(255, 250, 242, 0.92)";
+  drawRoundedRect(780, 86, 326, 48, 8);
+  ctx.fillStyle = active ? "#8f211b" : "#6b4b16";
+  ctx.font = "900 22px 'Courier New', monospace";
+  ctx.fillText(active ? "CAMERA SCANNING!" : "camera warming up...", 812, 117);
 }
 
 function frame(time) {
