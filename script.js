@@ -21,8 +21,9 @@ const W = canvas.width;
 const H = canvas.height;
 const groundY = 505;
 const safeZone = { x: 34, y: 390, w: 170, h: 120 };
-const tank = { x: 1010, y: 285, w: 150, h: 210 };
-const grabZone = { x: 914, y: 330, w: 230, h: 190 };
+const tankPlatform = { x: 920, y: 420, w: 250, h: 86 };
+const tank = { x: 995, y: 205, w: 150, h: 210 };
+const grabZone = { x: 900, y: 240, w: 245, h: 180 };
 const keys = { left: false, right: false, jump: false, grab: false };
 
 let state = "start";
@@ -89,11 +90,11 @@ function makePlayer() {
 }
 
 function buildObstacles() {
-  const jitter = () => randomBetween(-34, 34);
+  const jitter = () => randomBetween(-28, 28);
   return [
-    { type: "mug", x: 390 + jitter(), y: groundY - 78, w: 64, h: 78, cooldown: 0 },
+    { type: "mug", x: 405 + jitter(), y: groundY - 56, w: 50, h: 56, cooldown: 0 },
     { type: "keys", x: 630 + jitter(), y: groundY - 20, w: 78, h: 20, cooldown: 0 },
-    { type: "spill", x: 800 + jitter(), y: groundY - 10, w: 112, h: 10, cooldown: 0 }
+    { type: "spill", x: 780 + jitter(), y: groundY - 10, w: 104, h: 10, cooldown: 0 }
   ];
 }
 
@@ -115,7 +116,7 @@ function resetGame(startPlaying = true) {
   warning = null;
   messageTimer = 0;
   postFishBonusReady = false;
-  nextOwnerCheck = randomBetween(5.5, 8.5);
+  nextOwnerCheck = randomBetween(7.5, 11);
   ui.gameOverScreen.classList.remove("active");
   updateUi();
   if (startPlaying) {
@@ -181,7 +182,7 @@ function grabFish() {
   addSuspicion(stats.fish > 1 && postFishBonusReady ? 20 : 15);
   postFishBonusReady = true;
   warning = null;
-  nextOwnerCheck = Math.min(nextOwnerCheck, randomBetween(2.8, 4.6));
+  nextOwnerCheck = Math.min(nextOwnerCheck, randomBetween(4.3, 6.4));
   showMessage("Fish acquired. Back to the box!", false, 1.5);
   beep(740, 0.08, "sine", 0.05);
   beep(980, 0.08, "sine", 0.035);
@@ -189,9 +190,9 @@ function grabFish() {
 }
 
 function startOwnerWarning() {
-  const duration = randomBetween(1.2, 2.5) - (stats.suspicion / 100) * 0.4;
-  warning = { timer: clamp(duration, 1.2, 2.5), sweep: 0 };
-  showMessage("Footsteps! Hide!", true, warning.timer);
+  const duration = randomBetween(2.4, 3.8) - (stats.suspicion / 100) * 0.55;
+  warning = { timer: clamp(duration, 1.8, 3.8), sweep: 0 };
+  showMessage("Girlfriend footsteps! Hide in the box!", true, warning.timer);
   beep(180, 0.18, "sawtooth", 0.04);
 }
 
@@ -199,9 +200,9 @@ function resolveOwnerCheck() {
   if (inSafeZone()) {
     addScore(50);
     addSuspicion(-10);
-    showMessage("Daphne played innocent...", false, 1.6);
+    showMessage("She sees only a perfect little angel...", false, 1.6);
     beep(520, 0.1, "triangle", 0.04);
-    nextOwnerCheck = randomBetween(5.2, 8.5) - (stats.suspicion / 100) * 2.2;
+    nextOwnerCheck = randomBetween(7.2, 10.5) - (stats.suspicion / 100) * 2.4;
   } else {
     gameOver();
   }
@@ -220,7 +221,7 @@ function gameOver() {
   ui.finalBest.textContent = bestScore;
   ui.finalRank.textContent = rankFor(stats.fish);
   ui.gameOverScreen.classList.add("active");
-  showMessage("Caught!", true, 0.8);
+  showMessage("Your girlfriend caught Daphne mid-heist!", true, 1);
   beep(120, 0.35, "square", 0.05);
   updateUi();
 }
@@ -248,11 +249,7 @@ function update(dt) {
   player.slowed = Math.max(0, player.slowed - dt);
   player.invulnerable = Math.max(0, player.invulnerable - dt);
 
-  if (player.y + player.h >= groundY) {
-    player.y = groundY - player.h;
-    player.vy = 0;
-    player.onGround = true;
-  }
+  landOnSurfaces(dt);
 
   player.x = clamp(player.x, 18, W - player.w - 18);
 
@@ -267,10 +264,10 @@ function update(dt) {
 
     if (obstacle.cooldown <= 0 && player.invulnerable <= 0) {
       if (obstacle.type === "mug") {
-        addSuspicion(12);
-        player.vx = -player.facing * 230;
-        player.x += -player.facing * 18;
-        showMessage("Mug bump! Not subtle.", true, 1);
+        addSuspicion(8);
+        player.vx = -player.facing * 160;
+        player.x += -player.facing * 12;
+        showMessage("Tiny mug bump. Suspicious.", true, 1);
         beep(260, 0.08, "square", 0.04);
       } else if (obstacle.type === "keys") {
         addSuspicion(10);
@@ -305,11 +302,32 @@ function update(dt) {
     if (nextOwnerCheck <= 0) startOwnerWarning();
   } else {
     warning.timer -= dt;
-    warning.sweep = 1 - clamp(warning.timer / 2.5, 0, 1);
+    warning.sweep = 1 - clamp(warning.timer / 3.8, 0, 1);
     if (warning.timer <= 0) resolveOwnerCheck();
   }
 
   updateUi();
+}
+
+function landOnSurfaces(dt) {
+  player.onGround = false;
+  const previousBottom = player.y + player.h - player.vy * dt;
+  const platformTop = tankPlatform.y;
+  const rect = playerRect();
+  const overPlatform = rect.x + rect.w > tankPlatform.x + 8 && rect.x < tankPlatform.x + tankPlatform.w - 8;
+
+  if (player.vy >= 0 && overPlatform && previousBottom <= platformTop && player.y + player.h >= platformTop) {
+    player.y = platformTop - player.h;
+    player.vy = 0;
+    player.onGround = true;
+    return;
+  }
+
+  if (player.y + player.h >= groundY) {
+    player.y = groundY - player.h;
+    player.vy = 0;
+    player.onGround = true;
+  }
 }
 
 function drawRoundedRect(x, y, w, h, r) {
@@ -323,11 +341,12 @@ function drawScene(t) {
   drawRoom(t);
   drawSafeZone();
   drawCounter();
+  drawTankPlatform();
   drawTank(t);
   drawObstacles(t);
   drawDaphne(t);
   drawPrompts();
-  drawSpotlight();
+  drawGirlfriendCue(t);
 }
 
 function drawRoom(t) {
@@ -344,17 +363,50 @@ function drawRoom(t) {
   ctx.fillRect(86, 84, 72, 126);
   ctx.fillRect(170, 84, 72, 126);
 
+  ctx.fillStyle = "#2c2e36";
+  drawRoundedRect(360, 104, 300, 150, 7);
+  ctx.fillStyle = "#11131a";
+  drawRoundedRect(373, 116, 274, 126, 5);
+  ctx.fillStyle = "rgba(67, 184, 190, 0.28)";
+  ctx.beginPath();
+  ctx.moveTo(393, 132);
+  ctx.lineTo(628, 132);
+  ctx.lineTo(590, 224);
+  ctx.lineTo(421, 224);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.12)";
+  ctx.fillRect(410, 132, 58, 92);
+  ctx.fillStyle = "#2c2e36";
+  ctx.fillRect(496, 254, 28, 28);
+  ctx.fillRect(450, 278, 120, 10);
+
   ctx.fillStyle = "rgba(108,74,55,0.32)";
-  ctx.fillRect(524, 95, 220, 18);
+  ctx.fillRect(730, 95, 150, 18);
   ctx.fillStyle = "#e7a96b";
-  for (let i = 0; i < 4; i++) {
-    ctx.fillRect(545 + i * 48, 60 + Math.sin(t * 0.001 + i) * 2, 26, 48);
+  for (let i = 0; i < 3; i++) {
+    ctx.fillRect(748 + i * 42, 60 + Math.sin(t * 0.001 + i) * 2, 24, 48);
   }
 
   ctx.fillStyle = "rgba(255,255,255,0.28)";
   ctx.beginPath();
   ctx.arc(950, 90, 55 + Math.sin(t * 0.001) * 3, 0, Math.PI * 2);
   ctx.fill();
+}
+
+function drawTankPlatform() {
+  ctx.fillStyle = "rgba(66, 43, 31, 0.16)";
+  drawRoundedRect(tankPlatform.x + 8, tankPlatform.y + 12, tankPlatform.w, tankPlatform.h, 8);
+  ctx.fillStyle = "#b57951";
+  drawRoundedRect(tankPlatform.x, tankPlatform.y, tankPlatform.w, tankPlatform.h, 8);
+  ctx.fillStyle = "#e3ad77";
+  ctx.fillRect(tankPlatform.x + 10, tankPlatform.y + 8, tankPlatform.w - 20, 16);
+  ctx.fillStyle = "#8d583c";
+  ctx.fillRect(tankPlatform.x + 34, tankPlatform.y + 30, 26, tankPlatform.h - 30);
+  ctx.fillRect(tankPlatform.x + tankPlatform.w - 60, tankPlatform.y + 30, 26, tankPlatform.h - 30);
+  ctx.fillStyle = "#fff3d9";
+  ctx.font = "800 16px system-ui";
+  ctx.fillText("jump up!", tankPlatform.x + 88, tankPlatform.y + 54);
 }
 
 function drawCounter() {
@@ -453,17 +505,17 @@ function drawObstacles(t) {
 
 function drawMug(o) {
   ctx.fillStyle = "#f7f0de";
-  drawRoundedRect(o.x, o.y + 10, o.w - 12, o.h - 10, 7);
+  drawRoundedRect(o.x, o.y + 8, o.w - 10, o.h - 8, 7);
   ctx.strokeStyle = "#f7f0de";
-  ctx.lineWidth = 10;
+  ctx.lineWidth = 8;
   ctx.beginPath();
-  ctx.arc(o.x + o.w - 12, o.y + 42, 22, -Math.PI / 2, Math.PI / 2);
+  ctx.arc(o.x + o.w - 10, o.y + 34, 16, -Math.PI / 2, Math.PI / 2);
   ctx.stroke();
   ctx.fillStyle = "#4b2f24";
-  ctx.fillRect(o.x + 9, o.y + 11, o.w - 30, 12);
+  ctx.fillRect(o.x + 8, o.y + 9, o.w - 28, 9);
   ctx.fillStyle = "#2f9f9b";
-  ctx.font = "800 13px system-ui";
-  ctx.fillText("MUG", o.x + 10, o.y + 55);
+  ctx.font = "800 11px system-ui";
+  ctx.fillText("MUG", o.x + 8, o.y + 43);
 }
 
 function drawKeys(o, t) {
@@ -511,7 +563,7 @@ function drawDaphne(t) {
 
   ctx.fillStyle = "rgba(43, 33, 28, 0.16)";
   ctx.beginPath();
-  ctx.ellipse(cx, groundY - 5, 42, 9, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, pr.y + pr.h - 5, 42, 9, 0, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.strokeStyle = "#7b848b";
@@ -593,10 +645,10 @@ function drawPrompts() {
   if (state !== "playing") return;
   if (nearTank()) {
     ctx.fillStyle = "rgba(255, 250, 242, 0.92)";
-    drawRoundedRect(833, 236, 270, 44, 8);
+    drawRoundedRect(810, 150, 290, 44, 8);
     ctx.fillStyle = "#2b211c";
     ctx.font = "900 22px system-ui";
-    ctx.fillText("Press E to grab fish", 858, 265);
+    ctx.fillText("Press E to grab fish", 838, 179);
   }
   if (inSafeZone()) {
     ctx.fillStyle = "rgba(255, 250, 242, 0.86)";
@@ -607,18 +659,41 @@ function drawPrompts() {
   }
 }
 
-function drawSpotlight() {
+function drawGirlfriendCue(t) {
   if (!warning) return;
   const amount = warning.timer <= 0 ? 1 : warning.sweep;
-  ctx.fillStyle = `rgba(255, 245, 190, ${0.15 + amount * 0.22})`;
-  ctx.beginPath();
-  ctx.moveTo(W, 70);
-  ctx.lineTo(760 - amount * 500, H);
-  ctx.lineTo(1110 - amount * 430, H);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = `rgba(80, 24, 20, ${0.08 + amount * 0.18})`;
+  ctx.fillStyle = `rgba(58, 36, 30, ${0.05 + amount * 0.12})`;
   ctx.fillRect(0, 0, W, H);
+
+  const doorX = W - 78;
+  ctx.fillStyle = "#5f3d31";
+  ctx.fillRect(doorX, 120, 78, 300);
+  ctx.fillStyle = `rgba(255, 232, 166, ${0.24 + amount * 0.28})`;
+  ctx.fillRect(doorX + 6, 132, 18 + amount * 34, 276);
+  ctx.fillStyle = "#3b2722";
+  ctx.fillRect(doorX + 54 - amount * 24, 132, 24, 276);
+  ctx.fillStyle = "#f4c160";
+  ctx.beginPath();
+  ctx.arc(doorX + 58 - amount * 24, 270, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255, 250, 242, 0.92)";
+  drawRoundedRect(820, 86, 274, 48, 8);
+  ctx.fillStyle = "#8f211b";
+  ctx.font = "900 22px system-ui";
+  ctx.fillText("footsteps in the hall", 848, 117);
+
+  ctx.fillStyle = `rgba(43, 33, 28, ${0.38 + Math.sin(t * 0.012) * 0.12})`;
+  for (let i = 0; i < 4; i++) {
+    const x = 1030 - i * 42;
+    const y = 458 - i * 8;
+    ctx.beginPath();
+    ctx.ellipse(x, y, 9, 18, -0.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x + 18, y + 8, 9, 18, 0.35, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 function frame(time) {
