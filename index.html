@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daphne's Fish Heist</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="game-shell" aria-label="Daphne's Fish Heist arcade game">
+    <section class="hud" aria-label="Game status">
+      <div class="hud-card"><span>Fish</span><strong id="fishCount">0</strong></div>
+      <div class="hud-card"><span>Score</span><strong id="scoreCount">0</strong></div>
+      <div class="hud-card"><span>Best</span><strong id="bestCount">0</strong></div>
+      <div class="suspicion-card">
+        <div class="meter-label"><span>Suspicion</span><strong id="suspicionText">0%</strong></div>
+        <div class="meter" role="meter" aria-label="Suspicion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="suspicionFill"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="stage-wrap">
+      <canvas id="gameCanvas" width="1200" height="620" aria-label="Side-view game scene"></canvas>
+
+      <div id="startScreen" class="overlay active">
+        <div class="panel">
+          <p class="eyebrow">cozy arcade stealth</p>
+          <h1>Daphne's Fish Heist</h1>
+          <p class="subtitle">Steal the fish. Dodge the evidence. Hide before the footsteps.</p>
+          <button id="startButton" type="button">Start Heist</button>
+          <p class="controls">Move: A/D or arrows · Jump: W/Up/Space · Grab: E · Restart: R</p>
+        </div>
+      </div>
+
+      <div id="message" class="message" aria-live="polite"></div>
+
+      <div id="gameOverScreen" class="overlay">
+        <div class="panel">
+          <p class="eyebrow danger">caught in the act</p>
+          <h2>Caught!</h2>
+          <div class="results">
+            <p><span>Fish stolen</span><strong id="finalFish">0</strong></p>
+            <p><span>Final score</span><strong id="finalScore">0</strong></p>
+            <p><span>Best score</span><strong id="finalBest">0</strong></p>
+            <p><span>Rank</span><strong id="finalRank">Suspicious Loafer</strong></p>
+          </div>
+          <button id="restartButton" type="button">Restart Heist</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="mobile-controls" aria-label="Mobile controls">
+      <button data-hold="left" type="button">Left</button>
+      <button data-hold="right" type="button">Right</button>
+      <button data-tap="jump" type="button">Jump</button>
+      <button data-tap="grab" type="button">Grab</button>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
