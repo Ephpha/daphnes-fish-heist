@@ -1,5 +1,6 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
+ctx.imageSmoothingEnabled = false;
 
 const ui = {
   fish: document.getElementById("fishCount"),
@@ -389,9 +390,12 @@ function landOnSurfaces(dt) {
 }
 
 function drawRoundedRect(x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, r);
-  ctx.fill();
+  ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+}
+
+function pixelRect(x, y, w, h, color) {
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
 }
 
 function drawScene(t) {
@@ -541,27 +545,15 @@ function drawTank(t) {
   for (const f of fish) {
     const x = f.x + Math.sin(t * 0.001 * f.speed + f.phase) * 14;
     const y = f.y + Math.cos(t * 0.0012 + f.phase) * 5;
-    ctx.fillStyle = f.color;
-    ctx.beginPath();
-    ctx.ellipse(x, y, 15, 8, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(x - 14, y);
-    ctx.lineTo(x - 28, y - 9);
-    ctx.lineTo(x - 26, y + 9);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = "#1f2d35";
-    ctx.beginPath();
-    ctx.arc(x + 7, y - 2, 2, 0, Math.PI * 2);
-    ctx.fill();
+    pixelRect(x - 12, y - 6, 22, 12, f.color);
+    pixelRect(x - 22, y - 4, 10, 8, f.color);
+    pixelRect(x + 10, y - 3, 7, 6, f.color);
+    pixelRect(x + 5, y - 3, 3, 3, "#1f2d35");
   }
 
   ctx.fillStyle = "rgba(255,255,255,0.26)";
   for (let i = 0; i < 5; i++) {
-    ctx.beginPath();
-    ctx.arc(tank.x + 38 + i * 22, tank.y + 160 - ((t * 0.035 + i * 19) % 110), 4, 0, Math.PI * 2);
-    ctx.fill();
+    pixelRect(tank.x + 38 + i * 22, tank.y + 160 - ((t * 0.035 + i * 19) % 110), 6, 6, "rgba(255,255,255,0.26)");
   }
 }
 
@@ -570,111 +562,45 @@ function drawGirlfriend(t) {
 
   const x = girlfriend.x;
   const y = girlfriend.y;
-  const step = Math.sin(girlfriend.step) * 7;
-  const hipY = y + 140;
-  const shoulderY = y + 76;
-  const footY = y + girlfriend.h;
-  const skin = "#f1d2bb";
+  const step = Math.sin(girlfriend.step) > 0 ? 6 : -6;
+  const dir = girlfriend.leaving ? -1 : 1;
 
   ctx.save();
   ctx.translate(x + girlfriend.w / 2, y + girlfriend.h);
-  ctx.scale(girlfriend.leaving ? -1 : 1, 1);
+  ctx.scale(dir, 1);
   ctx.translate(-(x + girlfriend.w / 2), -(y + girlfriend.h));
 
-  ctx.fillStyle = "rgba(43, 33, 28, 0.16)";
-  ctx.beginPath();
-  ctx.ellipse(x + 39, footY - 2, 42, 9, 0, 0, Math.PI * 2);
-  ctx.fill();
+  pixelRect(x - 3, y + 244, 86, 8, "rgba(43, 33, 28, 0.18)");
 
-  ctx.strokeStyle = "#2f587b";
-  ctx.lineWidth = 11;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(x + 30, hipY);
-  ctx.lineTo(x + 25 + step, footY - 12);
-  ctx.moveTo(x + 48, hipY);
-  ctx.lineTo(x + 53 - step, footY - 12);
-  ctx.stroke();
+  pixelRect(x + 17 + step, y + 142, 14, 88, "#255070");
+  pixelRect(x + 47 - step, y + 142, 14, 88, "#255070");
+  pixelRect(x + 10 + step, y + 226, 30, 10, "#25364f");
+  pixelRect(x + 38 - step, y + 226, 30, 10, "#25364f");
 
-  ctx.fillStyle = "#5f9fc0";
-  ctx.beginPath();
-  ctx.moveTo(x + 22, shoulderY);
-  ctx.lineTo(x + 56, shoulderY);
-  ctx.lineTo(x + 62, hipY);
-  ctx.quadraticCurveTo(x + 39, hipY + 12, x + 16, hipY);
-  ctx.closePath();
-  ctx.fill();
+  pixelRect(x + 19, y + 76, 40, 68, "#5ea5c8");
+  pixelRect(x + 13, y + 84, 10, 48, "#78b9d5");
+  pixelRect(x + 55, y + 84, 10, 48, "#488ead");
+  pixelRect(x + 27, y + 82, 12, 56, "rgba(255,255,255,0.18)");
 
-  ctx.fillStyle = "rgba(255,255,255,0.2)";
-  ctx.beginPath();
-  ctx.moveTo(x + 26, shoulderY + 8);
-  ctx.lineTo(x + 36, shoulderY + 8);
-  ctx.lineTo(x + 33, hipY - 8);
-  ctx.lineTo(x + 23, hipY - 5);
-  ctx.closePath();
-  ctx.fill();
+  pixelRect(x + 8, y + 88, 12, 74, "#f0d1bd");
+  pixelRect(x + 59, y + 88, 12, 74, "#f0d1bd");
+  pixelRect(x + 5, y + 154 + step, 14, 14, "#f0d1bd");
+  pixelRect(x + 60, y + 154 - step, 14, 14, "#f0d1bd");
 
-  ctx.strokeStyle = skin;
-  ctx.lineWidth = 9;
-  ctx.beginPath();
-  ctx.moveTo(x + 22, shoulderY + 8);
-  ctx.lineTo(x + 4, y + 128 + step);
-  ctx.moveTo(x + 56, shoulderY + 8);
-  ctx.lineTo(x + 73, y + 127 - step);
-  ctx.stroke();
+  pixelRect(x + 22, y + 22, 34, 44, "#f0d1bd");
+  pixelRect(x + 18, y + 10, 42, 18, "#e3c34d");
+  pixelRect(x + 14, y + 28, 14, 64, "#e3c34d");
+  pixelRect(x + 50, y + 28, 14, 64, "#d7b642");
+  pixelRect(x + 25, y + 16, 26, 12, "#f2d75d");
+  pixelRect(x + 20, y + 60, 10, 28, "#d7b642");
+  pixelRect(x + 50, y + 60, 10, 28, "#c7a83b");
 
-  ctx.fillStyle = skin;
-  ctx.beginPath();
-  ctx.ellipse(x + 39, y + 43, 20, 25, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = "#e5c44f";
-  ctx.beginPath();
-  ctx.ellipse(x + 39, y + 31, 27, 25, 0, Math.PI * 0.92, Math.PI * 2.08);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(x + 17, y + 34);
-  ctx.quadraticCurveTo(x + 10, y + 78, x + 17, y + 112);
-  ctx.lineTo(x + 29, y + 111);
-  ctx.quadraticCurveTo(x + 24, y + 68, x + 27, y + 38);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(x + 59, y + 34);
-  ctx.quadraticCurveTo(x + 67, y + 78, x + 61, y + 112);
-  ctx.lineTo(x + 49, y + 111);
-  ctx.quadraticCurveTo(x + 54, y + 68, x + 50, y + 38);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = "#d7b944";
-  ctx.beginPath();
-  ctx.moveTo(x + 17, y + 35);
-  ctx.quadraticCurveTo(x + 39, y + 6, x + 61, y + 35);
-  ctx.quadraticCurveTo(x + 45, y + 28, x + 22, y + 37);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = "#5ba1d1";
-  ctx.beginPath();
-  ctx.ellipse(x + 32, y + 43, 2.7, 3.5, 0, 0, Math.PI * 2);
-  ctx.ellipse(x + 47, y + 43, 2.7, 3.5, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.strokeStyle = "#8a4b42";
-  ctx.lineWidth = 1.6;
-  ctx.beginPath();
-  ctx.arc(x + 40, y + 54, 8, 0.15, Math.PI - 0.15);
-  ctx.stroke();
-
-  ctx.strokeStyle = "#2d4058";
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(x + 25 + step, footY - 9);
-  ctx.lineTo(x + 12 + step, footY - 7);
-  ctx.moveTo(x + 53 - step, footY - 9);
-  ctx.lineTo(x + 66 - step, footY - 7);
-  ctx.stroke();
+  pixelRect(x + 29, y + 40, 6, 6, "#4d9bd3");
+  pixelRect(x + 44, y + 40, 6, 6, "#4d9bd3");
+  pixelRect(x + 37, y + 50, 6, 4, "#c98676");
+  pixelRect(x + 32, y + 58, 16, 4, "#7b3f38");
+  pixelRect(x + 28, y + 36, 8, 3, "#705041");
+  pixelRect(x + 43, y + 36, 8, 3, "#705041");
 
   ctx.restore();
 }
@@ -736,7 +662,7 @@ function drawSpill(o, t) {
 function drawDaphne(t) {
   const pr = player;
   const cx = pr.x + pr.w / 2;
-  const bob = pr.onGround ? Math.sin(pr.bob) * 3 : 0;
+  const bob = pr.onGround ? (Math.sin(pr.bob) > 0 ? 2 : 0) : 0;
   const y = pr.y + bob;
   const dir = pr.facing;
 
@@ -745,82 +671,27 @@ function drawDaphne(t) {
   ctx.scale(dir, 1);
   ctx.translate(-cx, -y - 40);
 
-  ctx.fillStyle = "rgba(43, 33, 28, 0.16)";
-  ctx.beginPath();
-  ctx.ellipse(cx, pr.y + pr.h - 5, 42, 9, 0, 0, Math.PI * 2);
-  ctx.fill();
+  pixelRect(cx - 40, pr.y + pr.h - 6, 82, 9, "rgba(43, 33, 28, 0.16)");
+  pixelRect(pr.x + 8, y + 32, 58, 34, "#8e9aa0");
+  pixelRect(pr.x + 16, y + 24, 42, 18, "#a1abb0");
+  pixelRect(pr.x + 28, y + 42, 28, 20, "#f7f2e8");
+  pixelRect(pr.x + 14, y + 64, 20, 10, "#f7f2e8");
+  pixelRect(pr.x + 52, y + 64, 20, 10, "#f7f2e8");
 
-  ctx.strokeStyle = "#7b848b";
-  ctx.lineWidth = 12;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(pr.x + 18, y + 44);
-  ctx.bezierCurveTo(pr.x - 22, y + 8, pr.x + 16, y - 14, pr.x + 30, y + 18);
-  ctx.stroke();
+  pixelRect(pr.x - 4, y + 32, 12, 12, "#7c878e");
+  pixelRect(pr.x - 14, y + 20, 12, 18, "#7c878e");
+  pixelRect(pr.x - 20, y + 14, 10, 12, "#8e9aa0");
 
-  ctx.fillStyle = "#8c969d";
-  ctx.beginPath();
-  ctx.ellipse(pr.x + 43, y + 43, 42, 30, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = "#f7f2e8";
-  ctx.beginPath();
-  ctx.ellipse(pr.x + 50, y + 48, 22, 22, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = "#f7f2e8";
-  for (const foot of [22, 62]) {
-    ctx.beginPath();
-    ctx.ellipse(pr.x + foot, y + 74, 15, 7, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  ctx.fillStyle = "#96a0a7";
-  ctx.beginPath();
-  ctx.arc(pr.x + 72, y + 24, 28, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = "#96a0a7";
-  ctx.beginPath();
-  ctx.moveTo(pr.x + 53, y + 5);
-  ctx.lineTo(pr.x + 60, y - 20);
-  ctx.lineTo(pr.x + 74, y + 3);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(pr.x + 78, y + 2);
-  ctx.lineTo(pr.x + 95, y - 17);
-  ctx.lineTo(pr.x + 98, y + 10);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = "#f7f2e8";
-  ctx.beginPath();
-  ctx.ellipse(pr.x + 82, y + 36, 18, 14, -0.15, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = "#f5ba45";
-  ctx.beginPath();
-  ctx.ellipse(pr.x + 73, y + 22, 5, 7, -0.1, 0, Math.PI * 2);
-  ctx.ellipse(pr.x + 92, y + 23, 5, 7, 0.1, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#1f2428";
-  ctx.fillRect(pr.x + 72, y + 17, 2, 10);
-  ctx.fillRect(pr.x + 91, y + 18, 2, 10);
-
-  ctx.fillStyle = "#ef8a95";
-  ctx.beginPath();
-  ctx.moveTo(pr.x + 83, y + 32);
-  ctx.lineTo(pr.x + 88, y + 32);
-  ctx.lineTo(pr.x + 85.5, y + 36);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.strokeStyle = "#40332f";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(pr.x + 88, y + 37, 9, 0.15, 1.2);
-  ctx.stroke();
+  pixelRect(pr.x + 52, y + 8, 38, 42, "#96a0a7");
+  pixelRect(pr.x + 56, y - 8, 10, 18, "#96a0a7");
+  pixelRect(pr.x + 78, y - 8, 10, 18, "#96a0a7");
+  pixelRect(pr.x + 62, y + 31, 28, 14, "#f7f2e8");
+  pixelRect(pr.x + 64, y + 20, 8, 10, "#f5ba45");
+  pixelRect(pr.x + 82, y + 20, 8, 10, "#f5ba45");
+  pixelRect(pr.x + 67, y + 21, 3, 8, "#1f2428");
+  pixelRect(pr.x + 85, y + 21, 3, 8, "#1f2428");
+  pixelRect(pr.x + 76, y + 32, 7, 5, "#ef8a95");
+  pixelRect(pr.x + 83, y + 38, 8, 3, "#40332f");
 
   ctx.restore();
 }
