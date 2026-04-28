@@ -195,14 +195,15 @@ function startOwnerWarning() {
   const duration = randomBetween(2.4, 3.8) - (stats.suspicion / 100) * 0.55;
   warning = { timer: clamp(duration, 1.8, 3.8), sweep: 0 };
   girlfriend = {
-    x: W + 54,
-    y: groundY - 158,
-    w: 54,
-    h: 158,
+    x: W + 70,
+    y: groundY - 250,
+    w: 78,
+    h: 250,
     speed: 92 + stats.suspicion * 0.45,
     step: 0,
     active: false,
-    leaving: false
+    leaving: false,
+    peeked: false
   };
   showMessage("Girlfriend footsteps! Hide in the box!", true, warning.timer);
   beep(180, 0.18, "sawtooth", 0.04);
@@ -329,12 +330,6 @@ function updateGirlfriendCheck(dt) {
   warning.timer -= dt;
   warning.sweep = 1 - clamp(warning.timer / 3.8, 0, 1);
 
-  if (inSafeZone()) {
-    if (girlfriend) girlfriend.leaving = true;
-    resolveOwnerCheck(true);
-    return;
-  }
-
   if (!girlfriend) return;
 
   if (warning.timer <= 0) girlfriend.active = true;
@@ -344,6 +339,18 @@ function updateGirlfriendCheck(dt) {
     const targetX = player.x + player.w / 2;
     const direction = girlfriend.leaving ? 1 : Math.sign(targetX - girlfriend.x);
     girlfriend.x += direction * girlfriend.speed * dt;
+
+    if (inSafeZone()) {
+      if (girlfriend.x < W - 320) {
+        girlfriend.peeked = true;
+        girlfriend.leaving = true;
+      }
+
+      if (girlfriend.peeked && girlfriend.x > W + 40) {
+        resolveOwnerCheck(true);
+      }
+      return;
+    }
 
     const daphneCenter = player.x + player.w / 2;
     const closeEnough = Math.abs((girlfriend.x + girlfriend.w / 2) - daphneCenter) < 58;
@@ -396,9 +403,9 @@ function drawScene(t) {
   drawTank(t);
   drawObstacles(t);
   drawDaphne(t);
+  drawGirlfriendCue(t);
   drawGirlfriend(t);
   drawPrompts();
-  drawGirlfriendCue(t);
 }
 
 function drawRoom(t) {
@@ -563,7 +570,11 @@ function drawGirlfriend(t) {
 
   const x = girlfriend.x;
   const y = girlfriend.y;
-  const step = Math.sin(girlfriend.step) * 5;
+  const step = Math.sin(girlfriend.step) * 7;
+  const hipY = y + 140;
+  const shoulderY = y + 76;
+  const footY = y + girlfriend.h;
+  const skin = "#f1d2bb";
 
   ctx.save();
   ctx.translate(x + girlfriend.w / 2, y + girlfriend.h);
@@ -572,53 +583,97 @@ function drawGirlfriend(t) {
 
   ctx.fillStyle = "rgba(43, 33, 28, 0.16)";
   ctx.beginPath();
-  ctx.ellipse(x + 27, y + girlfriend.h - 2, 28, 8, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + 39, footY - 2, 42, 9, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = "#365d7f";
-  ctx.lineWidth = 9;
+  ctx.strokeStyle = "#2f587b";
+  ctx.lineWidth = 11;
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(x + 18, y + 104);
-  ctx.lineTo(x + 15 + step, y + 150);
-  ctx.moveTo(x + 36, y + 104);
-  ctx.lineTo(x + 39 - step, y + 150);
+  ctx.moveTo(x + 30, hipY);
+  ctx.lineTo(x + 25 + step, footY - 12);
+  ctx.moveTo(x + 48, hipY);
+  ctx.lineTo(x + 53 - step, footY - 12);
   ctx.stroke();
 
-  ctx.fillStyle = "#6fb0cf";
-  drawRoundedRect(x + 10, y + 58, 34, 56, 8);
-
-  ctx.strokeStyle = "#f1d1b7";
-  ctx.lineWidth = 8;
+  ctx.fillStyle = "#5f9fc0";
   ctx.beginPath();
-  ctx.moveTo(x + 11, y + 66);
-  ctx.lineTo(x - 2, y + 94 + step);
-  ctx.moveTo(x + 43, y + 66);
-  ctx.lineTo(x + 56, y + 92 - step);
+  ctx.moveTo(x + 22, shoulderY);
+  ctx.lineTo(x + 56, shoulderY);
+  ctx.lineTo(x + 62, hipY);
+  ctx.quadraticCurveTo(x + 39, hipY + 12, x + 16, hipY);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255,255,255,0.2)";
+  ctx.beginPath();
+  ctx.moveTo(x + 26, shoulderY + 8);
+  ctx.lineTo(x + 36, shoulderY + 8);
+  ctx.lineTo(x + 33, hipY - 8);
+  ctx.lineTo(x + 23, hipY - 5);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = skin;
+  ctx.lineWidth = 9;
+  ctx.beginPath();
+  ctx.moveTo(x + 22, shoulderY + 8);
+  ctx.lineTo(x + 4, y + 128 + step);
+  ctx.moveTo(x + 56, shoulderY + 8);
+  ctx.lineTo(x + 73, y + 127 - step);
   ctx.stroke();
 
-  ctx.fillStyle = "#f1d1b7";
+  ctx.fillStyle = skin;
   ctx.beginPath();
-  ctx.arc(x + 27, y + 36, 24, 0, Math.PI * 2);
+  ctx.ellipse(x + 39, y + 43, 20, 25, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = "#f2cf52";
+  ctx.fillStyle = "#e5c44f";
   ctx.beginPath();
-  ctx.arc(x + 27, y + 31, 27, Math.PI * 0.94, Math.PI * 2.06);
+  ctx.ellipse(x + 39, y + 31, 27, 25, 0, Math.PI * 0.92, Math.PI * 2.08);
   ctx.fill();
-  ctx.fillRect(x + 5, y + 33, 10, 42);
-  ctx.fillRect(x + 39, y + 33, 10, 42);
+  ctx.beginPath();
+  ctx.moveTo(x + 17, y + 34);
+  ctx.quadraticCurveTo(x + 10, y + 78, x + 17, y + 112);
+  ctx.lineTo(x + 29, y + 111);
+  ctx.quadraticCurveTo(x + 24, y + 68, x + 27, y + 38);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + 59, y + 34);
+  ctx.quadraticCurveTo(x + 67, y + 78, x + 61, y + 112);
+  ctx.lineTo(x + 49, y + 111);
+  ctx.quadraticCurveTo(x + 54, y + 68, x + 50, y + 38);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "#d7b944";
+  ctx.beginPath();
+  ctx.moveTo(x + 17, y + 35);
+  ctx.quadraticCurveTo(x + 39, y + 6, x + 61, y + 35);
+  ctx.quadraticCurveTo(x + 45, y + 28, x + 22, y + 37);
+  ctx.closePath();
+  ctx.fill();
 
   ctx.fillStyle = "#5ba1d1";
   ctx.beginPath();
-  ctx.ellipse(x + 19, y + 37, 3.4, 4.5, 0, 0, Math.PI * 2);
-  ctx.ellipse(x + 35, y + 37, 3.4, 4.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + 32, y + 43, 2.7, 3.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + 47, y + 43, 2.7, 3.5, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = "#5b352c";
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#8a4b42";
+  ctx.lineWidth = 1.6;
   ctx.beginPath();
-  ctx.arc(x + 28, y + 46, 9, 0.1, Math.PI - 0.1);
+  ctx.arc(x + 40, y + 54, 8, 0.15, Math.PI - 0.15);
+  ctx.stroke();
+
+  ctx.strokeStyle = "#2d4058";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(x + 25 + step, footY - 9);
+  ctx.lineTo(x + 12 + step, footY - 7);
+  ctx.moveTo(x + 53 - step, footY - 9);
+  ctx.lineTo(x + 66 - step, footY - 7);
   ctx.stroke();
 
   ctx.restore();
