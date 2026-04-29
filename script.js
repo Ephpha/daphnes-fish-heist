@@ -26,6 +26,7 @@ const tankPlatform = { x: 900, y: 410, w: 270, h: 96 };
 const tank = { x: 975, y: 165, w: 180, h: 240 };
 const grabZone = { x: 885, y: 218, w: 270, h: 190 };
 const securityCamera = { x: 705, y: 86, w: 68, h: 34 };
+const cameraRoute = { startX: 1110, endX: 225 };
 const cameraZones = [
   { name: "box", x: 150 },
   { name: "mug", x: 430 },
@@ -200,30 +201,40 @@ function grabFish() {
 function triggerCamera(reason = "motion") {
   if (warning || state !== "playing") return;
   const difficulty = cameraDifficulty();
-  const tankAlert = reason === "tank";
-  const duration = (tankAlert ? randomBetween(2.2, 3.25) : randomBetween(1.6, 2.8)) - difficulty * 0.75;
+  const routeScan = reason === "motion" || reason === "tank" || reason === "daphne" || reason === "return";
+  const tankAlert = reason === "tank" || (routeScan && nearTank());
+  const duration = (tankAlert ? randomBetween(2.2, 3.25) : randomBetween(1.65, 2.7)) - difficulty * 0.65;
   const zone = chooseCameraZone(reason);
+  const activeDuration = routeScan
+    ? randomBetween(2.9, 3.7) - difficulty * 1.1
+    : randomBetween(1.15, 1.75) + difficulty * 1.15;
   warning = {
-    timer: clamp(duration, 0.75, 2.5),
-    duration: clamp(duration, 0.75, 2.5),
+    timer: clamp(duration, 0.85, 2.5),
+    duration: clamp(duration, 0.85, 2.5),
     active: 0,
-    activeDuration: (tankAlert ? randomBetween(1.35, 1.95) : randomBetween(1.15, 1.75)) + difficulty * 1.45,
-    escapeGrace: tankAlert ? 0.95 : 0.2,
-    beamX: zone.x,
-    targetX: zone.x,
+    activeDuration: clamp(activeDuration, 1.65, 3.9),
+    escapeGrace: tankAlert ? 1.05 : 0.25,
+    beamX: routeScan ? cameraRoute.startX : zone.x,
+    targetX: routeScan ? cameraRoute.startX : zone.x,
+    routeScan,
+    routeStart: cameraRoute.startX,
+    routeEnd: cameraRoute.endX,
+    jitterSeed: randomBetween(0, Math.PI * 2),
+    passes: 1 + (difficulty > 0.72 ? 1 : 0),
     reason,
     zone: zone.name,
-    width: (tankAlert ? 36 : 46) + difficulty * (tankAlert ? 26 : 38)
+    width: (routeScan ? 38 : 46) + difficulty * (routeScan ? 34 : 38)
   };
-  showMessage(tankAlert ? "Tank camera warming up. Move!" : reason === "motion" ? "Camera light warming up!" : "Noise triggered the camera!", true, warning.timer);
+  showMessage(routeScan ? "Camera sweep warming up. Move!" : "Noise triggered the camera!", true, warning.timer);
   beep(220, 0.12, "square", 0.04);
 }
 
 function cameraDifficulty() {
   const scorePressure = clamp(stats.score / 1800, 0, 1);
+  const fishPressure = clamp(stats.fish / 8, 0, 1);
   const suspicionPressure = stats.suspicion / 100;
   const lootPressure = postFishBonusReady ? 0.18 : 0;
-  return clamp(scorePressure * 0.45 + suspicionPressure * 0.55 + lootPressure, 0, 1);
+  return clamp(scorePressure * 0.32 + fishPressure * 0.22 + suspicionPressure * 0.46 + lootPressure, 0, 1);
 }
 
 function randomCameraDelay() {
@@ -384,7 +395,15 @@ function updateCameraCheck(dt) {
 
   if (warning.timer <= 0) {
     warning.active += dt;
-    warning.beamX = warning.targetX + Math.sin(warning.active * (2.4 + cameraDifficulty() * 1.8)) * (14 + cameraDifficulty() * 16);
+    if (warning.routeScan) {
+      const rawProgress = clamp(warning.active / warning.activeDuration, 0, 1);
+      const passProgress = (rawProgress * warning.passes) % 1;
+      const sweep = warning.passes > 1 && rawProgress > 0.5 ? 1 - passProgress : passProgress;
+      const jitter = Math.sin(warning.active * (7 + cameraDifficulty() * 9) + warning.jitterSeed) * (8 + cameraDifficulty() * 22);
+      warning.beamX = warning.routeStart + (warning.routeEnd - warning.routeStart) * sweep + jitter;
+    } else {
+      warning.beamX = warning.targetX + Math.sin(warning.active * (2.4 + cameraDifficulty() * 1.8)) * (14 + cameraDifficulty() * 16);
+    }
 
     if (cameraSeesDaphne()) {
       resolveCameraCheck(false);
@@ -405,7 +424,7 @@ function cameraSeesDaphne() {
 
   if (warning.zone === "tank") {
     if (warning.active < warning.escapeGrace && player.vx < -25) return false;
-    if (px < tank.x - 35) return false;
+    if (px < tank.x - 70 && warning.active < warning.escapeGrace + 0.65) return false;
   }
 
   const cameraX = securityCamera.x + securityCamera.w / 2;
@@ -632,24 +651,17 @@ function drawMug(o) {
   ctx.fillText("MUG", o.x + 8, o.y + 43);
 }
 
-function drawKeys(o, t) {
-  ctx.strokeStyle = "#f0bd43";
-  ctx.lineWidth = 7;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(o.x + 25, o.y + 12 + Math.sin(t * 0.01) * 1.5);
-  ctx.lineTo(o.x + 70, o.y + 12);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(o.x + 17, o.y + 12, 10, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(o.x + 54, o.y + 13);
-  ctx.lineTo(o.x + 54, o.y + 24);
-  ctx.moveTo(o.x + 65, o.y + 13);
-  ctx.lineTo(o.x + 65, o.y + 22);
-  ctx.stroke();
+function drawKeys(o) {
+  pixelRect(o.x + 2, o.y + 8, 20, 12, "#20242b");
+  pixelRect(o.x + 6, o.y + 4, 12, 5, "#303743");
+  pixelRect(o.x + 8, o.y + 11, 4, 4, "#49c1be");
+  pixelRect(o.x + 15, o.y + 11, 4, 4, "#f04d45");
+  pixelRect(o.x + 24, o.y + 12, 32, 5, "#f0bd43");
+  pixelRect(o.x + 52, o.y + 9, 8, 11, "#f0bd43");
+  pixelRect(o.x + 61, o.y + 12, 15, 5, "#d99d2e");
+  pixelRect(o.x + 72, o.y + 8, 5, 12, "#d99d2e");
+  pixelRect(o.x + 30, o.y + 4, 15, 5, "#f5cf62");
+  pixelRect(o.x + 40, o.y + 2, 5, 12, "#f5cf62");
 }
 
 function drawSpill(o, t) {
@@ -676,9 +688,9 @@ function drawDaphne(t) {
   ctx.translate(-cx, -y - 40);
 
   pixelRect(cx - 40, pr.y + pr.h - 6, 82, 9, "rgba(43, 33, 28, 0.16)");
-  pixelRect(pr.x + 8, y + 32, 58, 34, "#8e9aa0");
-  pixelRect(pr.x + 16, y + 24, 42, 18, "#a1abb0");
-  pixelRect(pr.x + 28, y + 42, 28, 20, "#f7f2e8");
+  pixelRect(pr.x + 10, y + 34, 54, 32, "#8e9aa0");
+  pixelRect(pr.x + 18, y + 25, 38, 17, "#a1abb0");
+  pixelRect(pr.x + 30, y + 42, 24, 21, "#f7f2e8");
   pixelRect(pr.x + 14, y + 64, 20, 10, "#f7f2e8");
   pixelRect(pr.x + 52, y + 64, 20, 10, "#f7f2e8");
 
@@ -686,15 +698,21 @@ function drawDaphne(t) {
   pixelRect(pr.x - 14, y + 20, 12, 18, "#7c878e");
   pixelRect(pr.x - 20, y + 14, 10, 12, "#8e9aa0");
 
-  pixelRect(pr.x + 52, y + 8, 38, 42, "#96a0a7");
+  pixelRect(pr.x + 54, y + 9, 36, 40, "#96a0a7");
   pixelRect(pr.x + 56, y - 8, 10, 18, "#96a0a7");
   pixelRect(pr.x + 78, y - 8, 10, 18, "#96a0a7");
-  pixelRect(pr.x + 62, y + 31, 28, 14, "#f7f2e8");
+  pixelRect(pr.x + 62, y + 31, 28, 14, "#fff5ed");
   pixelRect(pr.x + 64, y + 20, 8, 10, "#f5ba45");
   pixelRect(pr.x + 82, y + 20, 8, 10, "#f5ba45");
   pixelRect(pr.x + 67, y + 21, 3, 8, "#1f2428");
   pixelRect(pr.x + 85, y + 21, 3, 8, "#1f2428");
+  pixelRect(pr.x + 61, y + 18, 5, 2, "#40332f");
+  pixelRect(pr.x + 88, y + 18, 5, 2, "#40332f");
+  pixelRect(pr.x + 61, y + 28, 5, 2, "#40332f");
+  pixelRect(pr.x + 88, y + 28, 5, 2, "#40332f");
   pixelRect(pr.x + 76, y + 32, 7, 5, "#ef8a95");
+  pixelRect(pr.x + 63, y + 36, 6, 4, "#f3b3b8");
+  pixelRect(pr.x + 88, y + 36, 6, 4, "#f3b3b8");
   pixelRect(pr.x + 83, y + 38, 8, 3, "#40332f");
 
   ctx.restore();
