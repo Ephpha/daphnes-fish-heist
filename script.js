@@ -861,11 +861,7 @@ function drawCameraLight(t) {
     pixelRect(beamX - floorWidth + 8, groundY - 8, floorWidth * 2 - 16, 8, "rgba(255, 232, 95, 0.35)");
   }
 
-  ctx.fillStyle = "rgba(255, 250, 242, 0.92)";
-  drawRoundedRect(780, 86, 326, 48, 8);
-  ctx.fillStyle = active ? "#8f211b" : "#6b4b16";
-  ctx.font = "900 22px 'Courier New', monospace";
-  ctx.fillText(active ? "CAMERA!" : "lens waking...", 812, 117);
+  pixelRect(cameraX - 12, cameraY - 8, 24, 8, active ? "rgba(255, 232, 95, 0.72)" : "rgba(255, 232, 95, 0.36)");
 }
 
 function frame(time) {
