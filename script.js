@@ -31,7 +31,7 @@ const cameraZones = [
   { name: "box", x: 150 },
   { name: "mug", x: 430 },
   { name: "keys", x: 650 },
-  { name: "spill", x: 890 },
+  { name: "spill", x: 842 },
   { name: "tank", x: 1110 }
 ];
 const keys = { left: false, right: false, jump: false, grab: false };
@@ -104,7 +104,7 @@ function buildObstacles() {
   return [
     { type: "mug", x: 405 + jitter(), y: groundY - 56, w: 50, h: 56, cooldown: 0 },
     { type: "keys", x: 630 + jitter(), y: groundY - 20, w: 78, h: 20, cooldown: 0 },
-    { type: "spill", x: 872 + randomBetween(-18, 18), y: groundY - 10, w: 96, h: 10, cooldown: 0 }
+    { type: "spill", x: 812 + randomBetween(-14, 14), y: groundY - 10, w: 74, h: 10, cooldown: 0 }
   ];
 }
 
@@ -118,7 +118,7 @@ function buildFish() {
   ];
 
   return Array.from({ length: 4 }, (_, i) => ({
-    x: tank.x + 45 + i * 32,
+    x: tank.x + 48 + i * 30,
     y: tank.y + 88 + (i % 2) * 58,
     speed: randomBetween(4, 8),
     phase: randomBetween(0, Math.PI * 2),
@@ -645,18 +645,18 @@ function drawTank(t) {
     const fin = f.fin || f.color;
     const dark = f.dark || "#1f2d35";
 
-    pixelRect(x - 36, y - 16, 14, 10, fin);
-    pixelRect(x - 45, y - 7, 22, 14, fin);
-    pixelRect(x - 36, y + 7, 14, 10, fin);
-    pixelRect(x - 28, y - 12, 12, 24, dark);
-    pixelRect(x - 25, y - 18, 20, 10, fin);
-    pixelRect(x - 9, y - 21, 20, 9, fin);
-    pixelRect(x - 6, y + 9, 26, 12, fin);
-    pixelRect(x - 15, y - 8, 31, 16, body);
-    pixelRect(x + 13, y - 5, 15, 11, body);
-    pixelRect(x + 25, y - 2, 6, 6, body);
-    pixelRect(x + 15, y - 2, 3, 3, "#1f2d35");
-    pixelRect(x - 2, y + 1, 11, 3, "rgba(255,255,255,0.25)");
+    pixelRect(x - 30, y - 13, 12, 8, fin);
+    pixelRect(x - 37, y - 6, 18, 12, fin);
+    pixelRect(x - 30, y + 6, 12, 8, fin);
+    pixelRect(x - 23, y - 10, 10, 20, dark);
+    pixelRect(x - 20, y - 15, 17, 8, fin);
+    pixelRect(x - 7, y - 18, 17, 8, fin);
+    pixelRect(x - 5, y + 8, 22, 10, fin);
+    pixelRect(x - 13, y - 7, 27, 14, body);
+    pixelRect(x + 10, y - 4, 13, 9, body);
+    pixelRect(x + 20, y - 1, 5, 5, body);
+    pixelRect(x + 12, y - 2, 3, 3, "#1f2d35");
+    pixelRect(x - 1, y + 1, 9, 3, "rgba(255,255,255,0.25)");
   }
 
   ctx.fillStyle = "rgba(255,255,255,0.26)";
@@ -704,11 +704,11 @@ function drawKeys(o) {
 function drawSpill(o, t) {
   ctx.fillStyle = "rgba(80, 184, 211, 0.65)";
   ctx.beginPath();
-  ctx.ellipse(o.x + o.w / 2, o.y + 8, o.w / 2, 16, Math.sin(t * 0.001) * 0.05, 0, Math.PI * 2);
+  ctx.ellipse(o.x + o.w / 2, o.y + 8, o.w / 2, 13, Math.sin(t * 0.001) * 0.05, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = "rgba(255,255,255,0.55)";
   ctx.beginPath();
-  ctx.ellipse(o.x + 32, o.y + 5, 18, 5, -0.2, 0, Math.PI * 2);
+  ctx.ellipse(o.x + 25, o.y + 5, 14, 4, -0.2, 0, Math.PI * 2);
   ctx.fill();
 }
 
