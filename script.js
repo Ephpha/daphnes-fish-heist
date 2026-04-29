@@ -31,7 +31,7 @@ const cameraZones = [
   { name: "mug", x: 430 },
   { name: "keys", x: 650 },
   { name: "spill", x: 815 },
-  { name: "tank", x: 1045 }
+  { name: "tank", x: 1110 }
 ];
 const keys = { left: false, right: false, jump: false, grab: false };
 
@@ -200,20 +200,22 @@ function grabFish() {
 function triggerCamera(reason = "motion") {
   if (warning || state !== "playing") return;
   const difficulty = cameraDifficulty();
-  const duration = randomBetween(1.6, 2.8) - difficulty * 0.75;
+  const tankAlert = reason === "tank";
+  const duration = (tankAlert ? randomBetween(2.2, 3.25) : randomBetween(1.6, 2.8)) - difficulty * 0.75;
   const zone = chooseCameraZone(reason);
   warning = {
     timer: clamp(duration, 0.75, 2.5),
     duration: clamp(duration, 0.75, 2.5),
     active: 0,
-    activeDuration: randomBetween(1.15, 1.75) + difficulty * 1.45,
+    activeDuration: (tankAlert ? randomBetween(1.35, 1.95) : randomBetween(1.15, 1.75)) + difficulty * 1.45,
+    escapeGrace: tankAlert ? 0.95 : 0.2,
     beamX: zone.x,
     targetX: zone.x,
     reason,
     zone: zone.name,
-    width: 46 + difficulty * 38
+    width: (tankAlert ? 36 : 46) + difficulty * (tankAlert ? 26 : 38)
   };
-  showMessage(reason === "motion" ? "Camera light warming up!" : "Noise triggered the camera!", true, warning.timer);
+  showMessage(tankAlert ? "Tank camera warming up. Move!" : reason === "motion" ? "Camera light warming up!" : "Noise triggered the camera!", true, warning.timer);
   beep(220, 0.12, "square", 0.04);
 }
 
@@ -233,7 +235,7 @@ function chooseCameraZone(reason) {
   if (reason === "mug") return cameraZones.find((zone) => zone.name === "mug");
   if (reason === "keys") return cameraZones.find((zone) => zone.name === "keys");
   if (reason === "spill") return cameraZones.find((zone) => zone.name === "spill");
-  if (reason === "tank") return cameraZones.find((zone) => zone.name === "tank");
+  if (reason === "tank") return { name: "tank", x: clamp(player.x + player.w / 2 + 55, 1035, 1135) };
   if (reason === "daphne") return { name: "daphne", x: clamp(player.x + player.w / 2, 210, 1045) };
   if (postFishBonusReady && stats.suspicion > 55) return { name: "return", x: clamp(player.x + player.w / 2, 230, 1020) };
   if (stats.suspicion > 82 && Math.random() < 0.65) return { name: "attention", x: clamp(player.x + player.w / 2, 230, 1020) };
@@ -337,8 +339,8 @@ function update(dt) {
 
   if (nearTank()) {
     player.nearTankTime += dt;
-    addSuspicion(dt * 1);
-    if (!warning && stats.suspicion > 75 && player.nearTankTime > 1.6) {
+    addSuspicion(dt * (postFishBonusReady ? 1.35 : 0.9));
+    if (!warning && stats.suspicion > 75 && player.nearTankTime > 2.6) {
       triggerCamera("tank");
     }
   } else {
@@ -400,6 +402,12 @@ function cameraSeesDaphne() {
   const rect = playerRect();
   const px = rect.x + rect.w / 2;
   const py = rect.y + rect.h / 2;
+
+  if (warning.zone === "tank") {
+    if (warning.active < warning.escapeGrace && player.vx < -25) return false;
+    if (px < tank.x - 35) return false;
+  }
+
   const cameraX = securityCamera.x + securityCamera.w / 2;
   const cameraY = securityCamera.y + securityCamera.h;
   const progress = clamp((py - cameraY) / (groundY - cameraY), 0, 1);
