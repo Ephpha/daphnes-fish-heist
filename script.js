@@ -43,8 +43,10 @@ let warning = null;
 let nextOwnerCheck = 0;
 let postFishBonusReady = false;
 let audioCtx = null;
+let musicTimer = null;
+let musicGain = null;
 
-const saveKey = "daphnesFishHeistBest";
+const saveKey = "daphnesFishHeistBestV2";
 let bestScore = Number(localStorage.getItem(saveKey) || 0);
 
 let player;
@@ -66,7 +68,7 @@ function randomBetween(min, max) {
 
 function beep(freq, duration, type = "sine", volume = 0.05) {
   try {
-    audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    ensureAudio();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = type;
@@ -79,6 +81,57 @@ function beep(freq, duration, type = "sine", volume = 0.05) {
     osc.stop(audioCtx.currentTime + duration);
   } catch {
     audioCtx = null;
+  }
+}
+
+function ensureAudio() {
+  audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+
+function startMusic() {
+  try {
+    ensureAudio();
+    if (musicTimer) return;
+
+    musicGain = audioCtx.createGain();
+    musicGain.gain.value = 0.018;
+    musicGain.connect(audioCtx.destination);
+
+    const melody = [659, 0, 784, 0, 880, 784, 659, 0, 587, 0, 659, 0, 784, 659, 523, 0];
+    let step = 0;
+    musicTimer = window.setInterval(() => {
+      if (state !== "playing") return;
+      const freq = melody[step % melody.length];
+      step += 1;
+      if (!freq) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "square";
+      osc.frequency.value = freq;
+      gain.gain.value = 0.0001;
+      gain.gain.exponentialRampToValueAtTime(0.18, audioCtx.currentTime + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.18);
+      osc.connect(gain);
+      gain.connect(musicGain);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.2);
+    }, 260);
+  } catch {
+    musicTimer = null;
+    musicGain = null;
+  }
+}
+
+function stopMusic() {
+  if (musicTimer) {
+    window.clearInterval(musicTimer);
+    musicTimer = null;
+  }
+  if (musicGain) {
+    musicGain.disconnect();
+    musicGain = null;
   }
 }
 
@@ -95,7 +148,8 @@ function makePlayer() {
     bob: 0,
     slowed: 0,
     invulnerable: 0,
-    nearTankTime: 0
+    nearTankTime: 0,
+    grabCooldown: 0
   };
 }
 
@@ -133,6 +187,8 @@ function resetGame(startPlaying = true) {
   stats = { fish: 0, score: 0, suspicion: 0 };
   warning = null;
   messageTimer = 0;
+  ui.message.textContent = "";
+  ui.message.classList.remove("show", "warning");
   postFishBonusReady = false;
   nextOwnerCheck = randomCameraDelay();
   ui.gameOverScreen.classList.remove("active");
@@ -140,6 +196,7 @@ function resetGame(startPlaying = true) {
   if (startPlaying) {
     state = "playing";
     ui.startScreen.classList.remove("active");
+    startMusic();
     showMessage("Daphne slips out...");
   }
 }
@@ -194,7 +251,8 @@ function jump() {
 }
 
 function grabFish() {
-  if (state !== "playing" || !nearTank()) return;
+  if (state !== "playing" || !nearTank() || player.grabCooldown > 0) return;
+  player.grabCooldown = 0.85;
   stats.fish += 1;
   addScore(100);
   addSuspicion(stats.fish > 1 && postFishBonusReady ? 20 : 15);
@@ -203,13 +261,16 @@ function grabFish() {
   showMessage("Fish snagged. Box time!", false, 1.5);
   beep(740, 0.08, "sine", 0.05);
   beep(980, 0.08, "sine", 0.035);
+  if (stats.suspicion >= 90 || player.nearTankTime > 2.2 || stats.fish >= 4) {
+    forceCameraOnDaphne();
+  }
   updateUi();
 }
 
 function triggerCamera(reason = "motion") {
   if (warning || state !== "playing") return;
   const difficulty = cameraDifficulty();
-  const routeScan = reason === "motion" || reason === "tank" || reason === "daphne" || reason === "return";
+  const routeScan = reason === "motion" || reason === "tank" || reason === "return";
   const tankAlert = reason === "tank" || (routeScan && nearTank());
   const calmStart = stats.fish < 2 && stats.score < 250;
   const duration = (tankAlert ? randomBetween(2.45, 3.45) : randomBetween(2.25, 3.25)) - difficulty * 0.75;
@@ -239,6 +300,26 @@ function triggerCamera(reason = "motion") {
   };
   showMessage(routeScan ? "Lens waking. Scoot!" : "Noise woke the lens!", true, warning.timer);
   beep(220, 0.12, "square", 0.04);
+}
+
+function forceCameraOnDaphne() {
+  if (state !== "playing") return;
+  const targetX = clamp(player.x + player.w / 2, 210, 1045);
+  if (!warning) {
+    triggerCamera("daphne");
+    return;
+  }
+
+  warning.routeScan = false;
+  warning.reason = "daphne";
+  warning.zone = "daphne";
+  warning.targetX = targetX;
+  warning.beamX = warning.timer > 0 ? targetX : warning.beamX;
+  warning.timer = Math.min(warning.timer, 0.35);
+  warning.duration = Math.min(warning.duration, 0.35);
+  warning.escapeGrace = 0.08;
+  warning.detectionHold = Math.min(warning.detectionHold, 0.16);
+  showMessage("Lens locked on Daphne!", true, 1);
 }
 
 function cameraDifficulty() {
@@ -287,6 +368,7 @@ function resolveCameraCheck(success = true) {
 function gameOver() {
   state = "gameover";
   warning = null;
+  stopMusic();
   if (stats.score > bestScore) {
     bestScore = stats.score;
     localStorage.setItem(saveKey, String(bestScore));
@@ -323,6 +405,7 @@ function update(dt) {
   player.bob += Math.abs(player.vx) * dt * 0.035 + dt * 2.2;
   player.slowed = Math.max(0, player.slowed - dt);
   player.invulnerable = Math.max(0, player.invulnerable - dt);
+  player.grabCooldown = Math.max(0, player.grabCooldown - dt);
 
   landOnSurfaces(dt);
 
@@ -364,8 +447,8 @@ function update(dt) {
   if (nearTank()) {
     player.nearTankTime += dt;
     addSuspicion(dt * (postFishBonusReady ? 1.35 : 0.9));
-    if (!warning && stats.suspicion > 75 && player.nearTankTime > 2.6) {
-      triggerCamera("tank");
+    if (!warning && stats.suspicion > 75 && player.nearTankTime > 2.2) {
+      triggerCamera(stats.suspicion > 92 ? "daphne" : "tank");
     }
   } else {
     player.nearTankTime = 0;
@@ -882,13 +965,13 @@ function setKey(action, down) {
 
 window.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
-  if (["arrowleft", "arrowright", "arrowup", " ", "spacebar"].includes(key)) {
+  if (["arrowleft", "arrowright", "arrowup", " ", "spacebar", "e"].includes(key)) {
     event.preventDefault();
   }
   if (key === "arrowleft") setKey("left", true);
   if (key === "arrowright") setKey("right", true);
-  if (key === "w" || key === "arrowup" || key === " ") jump();
-  if (key === "e") grabFish();
+  if (!event.repeat && (key === "w" || key === "arrowup" || key === " ")) jump();
+  if (!event.repeat && key === "e") grabFish();
   if (key === "r" && state === "gameover") resetGame(true);
 });
 
