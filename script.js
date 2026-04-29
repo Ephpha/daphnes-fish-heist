@@ -211,45 +211,48 @@ function triggerCamera(reason = "motion") {
   const difficulty = cameraDifficulty();
   const routeScan = reason === "motion" || reason === "tank" || reason === "daphne" || reason === "return";
   const tankAlert = reason === "tank" || (routeScan && nearTank());
-  const duration = (tankAlert ? randomBetween(2.2, 3.25) : randomBetween(1.65, 2.7)) - difficulty * 0.65;
+  const calmStart = stats.fish < 2 && stats.score < 250;
+  const duration = (tankAlert ? randomBetween(2.45, 3.45) : randomBetween(2.25, 3.25)) - difficulty * 0.75;
   const zone = chooseCameraZone(reason);
   const activeDuration = routeScan
-    ? randomBetween(2.9, 3.7) - difficulty * 1.1
-    : randomBetween(1.15, 1.75) + difficulty * 1.15;
+    ? randomBetween(2.7, 3.45) - difficulty * 0.9
+    : randomBetween(1.0, 1.55) + difficulty * 0.95;
   warning = {
-    timer: clamp(duration, 0.85, 2.5),
-    duration: clamp(duration, 0.85, 2.5),
+    timer: clamp(duration, 1.05, calmStart ? 3.35 : 2.8),
+    duration: clamp(duration, 1.05, calmStart ? 3.35 : 2.8),
     active: 0,
-    activeDuration: clamp(activeDuration, 1.65, 3.9),
-    escapeGrace: tankAlert ? 1.05 : 0.25,
+    activeDuration: clamp(activeDuration, 1.75, 3.9),
+    escapeGrace: tankAlert ? 1.25 - difficulty * 0.25 : 0.45 - difficulty * 0.18,
+    seenTime: 0,
+    detectionHold: clamp(0.36 - difficulty * 0.2, 0.14, 0.36),
     beamX: routeScan ? cameraRoute.startX : zone.x,
     targetX: routeScan ? cameraRoute.startX : zone.x,
     routeScan,
     routeStart: cameraRoute.startX,
     routeEnd: cameraRoute.endX,
     jitterSeed: randomBetween(0, Math.PI * 2),
-    passes: 1 + (difficulty > 0.72 ? 1 : 0),
+    passes: 1 + (difficulty > 0.8 ? 1 : 0),
     riskyStart: !inSafeZone(),
     reason,
     zone: zone.name,
-    width: (routeScan ? 38 : 46) + difficulty * (routeScan ? 34 : 38)
+    width: (routeScan ? 30 : 36) + difficulty * (routeScan ? 38 : 42)
   };
   showMessage(routeScan ? "Camera sweep warming up. Move!" : "Noise triggered the camera!", true, warning.timer);
   beep(220, 0.12, "square", 0.04);
 }
 
 function cameraDifficulty() {
-  const scorePressure = clamp(stats.score / 2400, 0, 1);
-  const fishPressure = clamp(stats.fish / 10, 0, 1);
-  const suspicionPressure = Math.pow(stats.suspicion / 100, 1.35);
-  const progressPressure = Math.max(scorePressure, fishPressure * 0.9);
-  const lootPressure = postFishBonusReady ? 0.12 : 0;
-  return clamp(progressPressure * 0.55 + suspicionPressure * 0.25 + lootPressure, 0, 1);
+  const scorePressure = clamp(stats.score / 3000, 0, 1);
+  const fishPressure = clamp(stats.fish / 12, 0, 1);
+  const progressPressure = Math.max(scorePressure, fishPressure);
+  const suspicionPressure = Math.pow(stats.suspicion / 100, 1.5) * (0.12 + progressPressure * 0.22);
+  const lootPressure = postFishBonusReady ? 0.08 + progressPressure * 0.08 : 0;
+  return clamp(progressPressure * 0.6 + suspicionPressure + lootPressure, 0, 1);
 }
 
 function randomCameraDelay() {
   const difficulty = cameraDifficulty();
-  return randomBetween(8.2 - difficulty * 5.2, 12.4 - difficulty * 6.2);
+  return randomBetween(11.5 - difficulty * 8.1, 16 - difficulty * 10.1);
 }
 
 function chooseCameraZone(reason) {
@@ -333,7 +336,7 @@ function update(dt) {
       player.slowed = 1.1;
       if (obstacle.cooldown <= 0) {
         addSuspicion(4);
-        if (Math.random() < 0.45 + cameraDifficulty() * 0.45) triggerCamera("spill");
+        if (Math.random() < 0.22 + cameraDifficulty() * 0.58) triggerCamera("spill");
         obstacle.cooldown = 1.2;
       }
       continue;
@@ -345,12 +348,12 @@ function update(dt) {
         player.vx = -player.facing * 160;
         player.x += -player.facing * 12;
         showMessage("Tiny mug bump. Suspicious.", true, 1);
-        if (Math.random() < 0.6 + cameraDifficulty() * 0.38) triggerCamera("mug");
+        if (Math.random() < 0.35 + cameraDifficulty() * 0.5) triggerCamera("mug");
         beep(260, 0.08, "square", 0.04);
       } else if (obstacle.type === "keys") {
         addSuspicion(10);
         showMessage("Jingly evidence!", true, 1);
-        if (Math.random() < 0.7 + cameraDifficulty() * 0.3) triggerCamera("keys");
+        if (Math.random() < 0.42 + cameraDifficulty() * 0.48) triggerCamera("keys");
         beep(480, 0.05, "square", 0.035);
       }
       obstacle.cooldown = 1.1;
@@ -385,9 +388,9 @@ function update(dt) {
   }
 
   if (!warning) {
-    const carryingHeat = postFishBonusReady ? 1.25 : 0;
-    nextOwnerCheck -= dt * (1 + stats.suspicion / 65 + carryingHeat);
-    if (postFishBonusReady && stats.suspicion > 65 && nextOwnerCheck < 1.4) {
+    const carryingHeat = postFishBonusReady ? 0.9 + cameraDifficulty() * 0.6 : 0;
+    nextOwnerCheck -= dt * (1 + stats.suspicion / 90 + carryingHeat);
+    if (postFishBonusReady && stats.suspicion > 72 && nextOwnerCheck < 1.25) {
       triggerCamera("daphne");
     } else if (nextOwnerCheck <= 0) {
       triggerCamera(nearTank() ? "tank" : "motion");
@@ -416,6 +419,12 @@ function updateCameraCheck(dt) {
     }
 
     if (cameraSeesDaphne()) {
+      warning.seenTime += dt;
+    } else {
+      warning.seenTime = Math.max(0, warning.seenTime - dt * 2.4);
+    }
+
+    if (warning.seenTime >= warning.detectionHold) {
       resolveCameraCheck(false);
       return;
     }
@@ -496,11 +505,7 @@ function drawRoom(t) {
   ctx.fillStyle = wall;
   ctx.fillRect(0, 0, W, H);
 
-  ctx.fillStyle = "rgba(255,255,255,0.28)";
-  ctx.fillRect(74, 72, 180, 150);
-  ctx.fillStyle = "rgba(77,118,135,0.2)";
-  ctx.fillRect(86, 84, 72, 126);
-  ctx.fillRect(170, 84, 72, 126);
+  drawStormWindow(t);
 
   ctx.fillStyle = "#2c2e36";
   drawRoundedRect(360, 104, 300, 150, 7);
@@ -538,6 +543,59 @@ function drawRoom(t) {
   drawHangingPlant(t);
 
   ctx.fillStyle = "rgba(255,255,255,0.28)";
+}
+
+function drawStormWindow(t) {
+  const x = 74;
+  const y = 72;
+  const w = 180;
+  const h = 150;
+  const flash = Math.sin(t * 0.0017) > 0.965 || Math.sin(t * 0.0031 + 2.6) > 0.985;
+
+  ctx.fillStyle = flash ? "rgba(246, 245, 188, 0.92)" : "rgba(48, 73, 92, 0.76)";
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = flash ? "rgba(189, 215, 228, 0.45)" : "rgba(23, 36, 51, 0.34)";
+  ctx.fillRect(x + 12, y + 13, 156, 122);
+
+  ctx.fillStyle = flash ? "rgba(255,255,220,0.9)" : "rgba(117, 134, 147, 0.82)";
+  pixelRect(x + 18, y + 32, 48, 12, ctx.fillStyle);
+  pixelRect(x + 36, y + 22, 62, 16, ctx.fillStyle);
+  pixelRect(x + 96, y + 42, 52, 12, ctx.fillStyle);
+  pixelRect(x + 112, y + 31, 42, 15, ctx.fillStyle);
+
+  ctx.strokeStyle = flash ? "rgba(255, 247, 151, 0.9)" : "rgba(180, 210, 230, 0.62)";
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 9; i++) {
+    const rx = x + 18 + ((i * 23 + t * 0.055) % 142);
+    const ry = y + 48 + ((i * 31 + t * 0.12) % 76);
+    ctx.beginPath();
+    ctx.moveTo(rx, ry);
+    ctx.lineTo(rx - 8, ry + 30);
+    ctx.stroke();
+  }
+
+  if (flash) {
+    ctx.strokeStyle = "#fff36d";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(x + 132, y + 18);
+    ctx.lineTo(x + 110, y + 58);
+    ctx.lineTo(x + 128, y + 58);
+    ctx.lineTo(x + 98, y + 110);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "rgba(255,255,255,0.26)";
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = "rgba(255,255,255,0.36)";
+  ctx.fillRect(x + 11, y + 12, 64, 126);
+  ctx.fillRect(x + 96, y + 12, 62, 126);
+  ctx.fillStyle = "rgba(250, 232, 205, 0.72)";
+  ctx.fillRect(x - 8, y - 8, w + 16, 12);
+  ctx.fillRect(x - 8, y + h - 4, w + 16, 12);
+  ctx.fillRect(x - 8, y - 8, 12, h + 16);
+  ctx.fillRect(x + w - 4, y - 8, 12, h + 16);
+  ctx.fillRect(x + 82, y, 10, h);
 }
 
 function drawSecurityCamera(t) {
