@@ -31,7 +31,7 @@ const cameraZones = [
   { name: "box", x: 150 },
   { name: "mug", x: 430 },
   { name: "keys", x: 650 },
-  { name: "spill", x: 815 },
+  { name: "spill", x: 890 },
   { name: "tank", x: 1110 }
 ];
 const keys = { left: false, right: false, jump: false, grab: false };
@@ -104,7 +104,7 @@ function buildObstacles() {
   return [
     { type: "mug", x: 405 + jitter(), y: groundY - 56, w: 50, h: 56, cooldown: 0 },
     { type: "keys", x: 630 + jitter(), y: groundY - 20, w: 78, h: 20, cooldown: 0 },
-    { type: "spill", x: 780 + jitter(), y: groundY - 10, w: 104, h: 10, cooldown: 0 }
+    { type: "spill", x: 872 + randomBetween(-18, 18), y: groundY - 10, w: 96, h: 10, cooldown: 0 }
   ];
 }
 
@@ -542,9 +542,9 @@ function drawSecurityCamera(t) {
 }
 
 function drawHangingPlant(t) {
-  const x = 1095;
-  const y = 70;
-  pixelRect(x + 28, y - 8, 6, 62, "#6b4b3e");
+  const x = 1090;
+  const y = 28;
+  pixelRect(x + 28, y - 4, 6, 52, "#6b4b3e");
   pixelRect(x + 8, y + 48, 46, 16, "#9b6a4c");
   pixelRect(x + 14, y + 64, 34, 22, "#7b4f3b");
   const sway = Math.sin(t * 0.0015) > 0 ? 3 : 0;
@@ -632,9 +632,15 @@ function drawTank(t) {
   for (const f of fish) {
     const x = f.x + Math.sin(t * 0.001 * f.speed + f.phase) * 14;
     const y = f.y + Math.cos(t * 0.0012 + f.phase) * 5;
-    pixelRect(x - 12, y - 6, 22, 12, f.color);
-    pixelRect(x - 22, y - 4, 10, 8, f.color);
-    pixelRect(x + 10, y - 3, 7, 6, f.color);
+    const fin = f.color;
+    pixelRect(x - 13, y - 6, 22, 12, fin);
+    pixelRect(x - 25, y - 10, 12, 8, fin);
+    pixelRect(x - 28, y - 2, 15, 8, fin);
+    pixelRect(x - 24, y + 6, 11, 8, fin);
+    pixelRect(x - 3, y - 14, 12, 8, fin);
+    pixelRect(x - 1, y + 7, 14, 9, fin);
+    pixelRect(x + 9, y - 4, 10, 8, fin);
+    pixelRect(x + 16, y - 2, 6, 4, fin);
     pixelRect(x + 5, y - 3, 3, 3, "#1f2d35");
   }
 
