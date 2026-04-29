@@ -190,7 +190,7 @@ function grabFish() {
   addScore(100);
   addSuspicion(stats.fish > 1 && postFishBonusReady ? 20 : 15);
   postFishBonusReady = true;
-  nextOwnerCheck = Math.min(nextOwnerCheck, randomBetween(4.3, 6.4));
+  nextOwnerCheck = Math.min(nextOwnerCheck, randomBetween(2.2, 4.6) - cameraDifficulty() * 1.1);
   showMessage("Fish acquired. Back to the box!", false, 1.5);
   beep(740, 0.08, "sine", 0.05);
   beep(980, 0.08, "sine", 0.035);
@@ -200,30 +200,33 @@ function grabFish() {
 function triggerCamera(reason = "motion") {
   if (warning || state !== "playing") return;
   const difficulty = cameraDifficulty();
-  const duration = randomBetween(1.8, 2.9) - difficulty * 0.55 - (stats.suspicion / 100) * 0.25;
+  const duration = randomBetween(1.6, 2.8) - difficulty * 0.75;
   const zone = chooseCameraZone(reason);
   warning = {
-    timer: clamp(duration, 1.1, 2.5),
-    duration: clamp(duration, 1.1, 2.5),
+    timer: clamp(duration, 0.75, 2.5),
+    duration: clamp(duration, 0.75, 2.5),
     active: 0,
-    activeDuration: randomBetween(1.1, 1.7) + difficulty * 1.15,
+    activeDuration: randomBetween(1.15, 1.75) + difficulty * 1.45,
     beamX: zone.x,
     targetX: zone.x,
     reason,
     zone: zone.name,
-    width: 48 + difficulty * 20
+    width: 46 + difficulty * 38
   };
   showMessage(reason === "motion" ? "Camera light warming up!" : "Noise triggered the camera!", true, warning.timer);
   beep(220, 0.12, "square", 0.04);
 }
 
 function cameraDifficulty() {
-  return clamp(stats.score / 1600, 0, 1);
+  const scorePressure = clamp(stats.score / 1800, 0, 1);
+  const suspicionPressure = stats.suspicion / 100;
+  const lootPressure = postFishBonusReady ? 0.18 : 0;
+  return clamp(scorePressure * 0.45 + suspicionPressure * 0.55 + lootPressure, 0, 1);
 }
 
 function randomCameraDelay() {
   const difficulty = cameraDifficulty();
-  return randomBetween(8.5 - difficulty * 3.2, 13 - difficulty * 4.2);
+  return randomBetween(8.2 - difficulty * 5.2, 12.4 - difficulty * 6.2);
 }
 
 function chooseCameraZone(reason) {
@@ -231,6 +234,9 @@ function chooseCameraZone(reason) {
   if (reason === "keys") return cameraZones.find((zone) => zone.name === "keys");
   if (reason === "spill") return cameraZones.find((zone) => zone.name === "spill");
   if (reason === "tank") return cameraZones.find((zone) => zone.name === "tank");
+  if (reason === "daphne") return { name: "daphne", x: clamp(player.x + player.w / 2, 210, 1045) };
+  if (postFishBonusReady && stats.suspicion > 55) return { name: "return", x: clamp(player.x + player.w / 2, 230, 1020) };
+  if (stats.suspicion > 82 && Math.random() < 0.65) return { name: "attention", x: clamp(player.x + player.w / 2, 230, 1020) };
 
   const candidates = stats.score < 450
     ? cameraZones.filter((zone) => zone.name === "mug" || zone.name === "keys" || zone.name === "spill")
@@ -244,7 +250,7 @@ function resolveCameraCheck(success = true) {
     addSuspicion(-10);
     showMessage("Camera sees an empty counter...", false, 1.6);
     beep(520, 0.1, "triangle", 0.04);
-    nextOwnerCheck = randomCameraDelay() - (stats.suspicion / 100) * 1.2;
+    nextOwnerCheck = Math.max(1.1, randomCameraDelay() - (stats.suspicion / 100) * 1.4);
   } else if (!success) {
     gameOver();
     return;
@@ -304,7 +310,7 @@ function update(dt) {
       player.slowed = 1.1;
       if (obstacle.cooldown <= 0) {
         addSuspicion(4);
-        if (Math.random() < 0.5 + cameraDifficulty() * 0.25) triggerCamera("spill");
+        if (Math.random() < 0.45 + cameraDifficulty() * 0.45) triggerCamera("spill");
         obstacle.cooldown = 1.2;
       }
       continue;
@@ -316,12 +322,12 @@ function update(dt) {
         player.vx = -player.facing * 160;
         player.x += -player.facing * 12;
         showMessage("Tiny mug bump. Suspicious.", true, 1);
-        if (Math.random() < 0.65 + cameraDifficulty() * 0.25) triggerCamera("mug");
+        if (Math.random() < 0.6 + cameraDifficulty() * 0.38) triggerCamera("mug");
         beep(260, 0.08, "square", 0.04);
       } else if (obstacle.type === "keys") {
         addSuspicion(10);
         showMessage("Jingly evidence!", true, 1);
-        if (Math.random() < 0.75 + cameraDifficulty() * 0.2) triggerCamera("keys");
+        if (Math.random() < 0.7 + cameraDifficulty() * 0.3) triggerCamera("keys");
         beep(480, 0.05, "square", 0.035);
       }
       obstacle.cooldown = 1.1;
@@ -332,6 +338,9 @@ function update(dt) {
   if (nearTank()) {
     player.nearTankTime += dt;
     addSuspicion(dt * 1);
+    if (!warning && stats.suspicion > 75 && player.nearTankTime > 1.6) {
+      triggerCamera("tank");
+    }
   } else {
     player.nearTankTime = 0;
   }
@@ -348,12 +357,18 @@ function update(dt) {
     const maxDistance = tank.x - safeCenter;
     const distanceFromSafe = Math.abs((player.x + player.w / 2) - safeCenter);
     const safeCloseness = 1 - clamp(distanceFromSafe / maxDistance, 0, 1);
-    addSuspicion(-(1.1 + safeCloseness * 3.4) * dt);
+    const carryingPenalty = postFishBonusReady ? 1.8 : 0;
+    addSuspicion(-(1.1 + safeCloseness * 3.4 - carryingPenalty) * dt);
   }
 
   if (!warning) {
-    nextOwnerCheck -= dt * (1 + stats.suspicion / 85);
-    if (nextOwnerCheck <= 0) triggerCamera(nearTank() ? "tank" : "motion");
+    const carryingHeat = postFishBonusReady ? 1.25 : 0;
+    nextOwnerCheck -= dt * (1 + stats.suspicion / 65 + carryingHeat);
+    if (postFishBonusReady && stats.suspicion > 65 && nextOwnerCheck < 1.4) {
+      triggerCamera("daphne");
+    } else if (nextOwnerCheck <= 0) {
+      triggerCamera(nearTank() ? "tank" : "motion");
+    }
   } else {
     updateCameraCheck(dt);
   }
@@ -480,13 +495,6 @@ function drawRoom(t) {
   drawRoundedRect(388, 290, 246, 30, 5);
 
   drawSecurityCamera(t);
-
-  ctx.fillStyle = "rgba(108,74,55,0.32)";
-  ctx.fillRect(730, 95, 150, 18);
-  ctx.fillStyle = "#e7a96b";
-  for (let i = 0; i < 3; i++) {
-    ctx.fillRect(748 + i * 42, 60 + Math.sin(t * 0.001 + i) * 2, 24, 48);
-  }
 
   ctx.fillStyle = "rgba(255,255,255,0.28)";
   ctx.beginPath();
