@@ -109,12 +109,20 @@ function buildObstacles() {
 }
 
 function buildFish() {
-  return Array.from({ length: 5 }, (_, i) => ({
-    x: tank.x + 44 + i * 24,
-    y: tank.y + 88 + (i % 2) * 48,
-    speed: randomBetween(6, 12),
+  const palettes = [
+    { body: "#e84f63", fin: "#ff8a70", dark: "#9d2f4d" },
+    { body: "#f2b43f", fin: "#ffdd6e", dark: "#b56c25" },
+    { body: "#7256cf", fin: "#a787ff", dark: "#46348e" },
+    { body: "#258f91", fin: "#45c9c2", dark: "#176269" },
+    { body: "#d94f8f", fin: "#ff8ec0", dark: "#99345f" }
+  ];
+
+  return Array.from({ length: 4 }, (_, i) => ({
+    x: tank.x + 45 + i * 32,
+    y: tank.y + 88 + (i % 2) * 58,
+    speed: randomBetween(4, 8),
     phase: randomBetween(0, Math.PI * 2),
-    color: ["#f05f5f", "#f5ba45", "#7f63d9", "#2f9f9b", "#ef7da8"][i]
+    ...palettes[i]
   }));
 }
 
@@ -231,11 +239,12 @@ function triggerCamera(reason = "motion") {
 }
 
 function cameraDifficulty() {
-  const scorePressure = clamp(stats.score / 1800, 0, 1);
-  const fishPressure = clamp(stats.fish / 8, 0, 1);
-  const suspicionPressure = stats.suspicion / 100;
-  const lootPressure = postFishBonusReady ? 0.18 : 0;
-  return clamp(scorePressure * 0.32 + fishPressure * 0.22 + suspicionPressure * 0.46 + lootPressure, 0, 1);
+  const scorePressure = clamp(stats.score / 2400, 0, 1);
+  const fishPressure = clamp(stats.fish / 10, 0, 1);
+  const suspicionPressure = Math.pow(stats.suspicion / 100, 1.35);
+  const progressPressure = Math.max(scorePressure, fishPressure * 0.9);
+  const lootPressure = postFishBonusReady ? 0.12 : 0;
+  return clamp(progressPressure * 0.55 + suspicionPressure * 0.25 + lootPressure, 0, 1);
 }
 
 function randomCameraDelay() {
@@ -360,7 +369,7 @@ function update(dt) {
   }
 
   if (inSafeZone()) {
-    addSuspicion(-6 * dt);
+    addSuspicion(-(postFishBonusReady ? 20 : 14) * dt);
     if (postFishBonusReady) {
       addScore(25);
       postFishBonusReady = false;
@@ -630,18 +639,24 @@ function drawTank(t) {
   ctx.fillRect(tank.x + 14, tank.y + tank.h - 28, tank.w - 28, 20);
 
   for (const f of fish) {
-    const x = f.x + Math.sin(t * 0.001 * f.speed + f.phase) * 14;
-    const y = f.y + Math.cos(t * 0.0012 + f.phase) * 5;
-    const fin = f.color;
-    pixelRect(x - 13, y - 6, 22, 12, fin);
-    pixelRect(x - 25, y - 10, 12, 8, fin);
-    pixelRect(x - 28, y - 2, 15, 8, fin);
-    pixelRect(x - 24, y + 6, 11, 8, fin);
-    pixelRect(x - 3, y - 14, 12, 8, fin);
-    pixelRect(x - 1, y + 7, 14, 9, fin);
-    pixelRect(x + 9, y - 4, 10, 8, fin);
-    pixelRect(x + 16, y - 2, 6, 4, fin);
-    pixelRect(x + 5, y - 3, 3, 3, "#1f2d35");
+    const x = f.x + Math.sin(t * 0.001 * f.speed + f.phase) * 9;
+    const y = f.y + Math.cos(t * 0.001 + f.phase) * 4;
+    const body = f.body || f.color;
+    const fin = f.fin || f.color;
+    const dark = f.dark || "#1f2d35";
+
+    pixelRect(x - 36, y - 16, 14, 10, fin);
+    pixelRect(x - 45, y - 7, 22, 14, fin);
+    pixelRect(x - 36, y + 7, 14, 10, fin);
+    pixelRect(x - 28, y - 12, 12, 24, dark);
+    pixelRect(x - 25, y - 18, 20, 10, fin);
+    pixelRect(x - 9, y - 21, 20, 9, fin);
+    pixelRect(x - 6, y + 9, 26, 12, fin);
+    pixelRect(x - 15, y - 8, 31, 16, body);
+    pixelRect(x + 13, y - 5, 15, 11, body);
+    pixelRect(x + 25, y - 2, 6, 6, body);
+    pixelRect(x + 15, y - 2, 3, 3, "#1f2d35");
+    pixelRect(x - 2, y + 1, 11, 3, "rgba(255,255,255,0.25)");
   }
 
   ctx.fillStyle = "rgba(255,255,255,0.26)";
@@ -703,13 +718,17 @@ function drawDaphne(t) {
   const bob = pr.onGround ? (Math.sin(pr.bob) > 0 ? 2 : 0) : 0;
   const y = pr.y + bob;
   const dir = pr.facing;
+  const rect = playerRect();
+  const overTankPlatform = rect.x + rect.w > tankPlatform.x + 8 && rect.x < tankPlatform.x + tankPlatform.w - 8;
+  const shadowY = overTankPlatform && pr.y + pr.h <= tankPlatform.y + 90 ? tankPlatform.y : groundY;
+
+  pixelRect(cx - 40, shadowY - 7, 82, 8, "rgba(43, 33, 28, 0.16)");
 
   ctx.save();
   ctx.translate(cx, y + 40);
   ctx.scale(dir, 1);
   ctx.translate(-cx, -y - 40);
 
-  pixelRect(cx - 40, pr.y + pr.h - 6, 82, 9, "rgba(43, 33, 28, 0.16)");
   pixelRect(pr.x + 10, y + 34, 54, 32, "#8e9aa0");
   pixelRect(pr.x + 18, y + 25, 38, 17, "#a1abb0");
   pixelRect(pr.x + 30, y + 42, 24, 21, "#f7f2e8");
