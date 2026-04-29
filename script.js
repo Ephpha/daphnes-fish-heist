@@ -221,6 +221,7 @@ function triggerCamera(reason = "motion") {
     routeEnd: cameraRoute.endX,
     jitterSeed: randomBetween(0, Math.PI * 2),
     passes: 1 + (difficulty > 0.72 ? 1 : 0),
+    riskyStart: !inSafeZone(),
     reason,
     zone: zone.name,
     width: (routeScan ? 38 : 46) + difficulty * (routeScan ? 34 : 38)
@@ -259,7 +260,7 @@ function chooseCameraZone(reason) {
 
 function resolveCameraCheck(success = true) {
   if (inSafeZone()) {
-    addScore(50);
+    if (warning?.riskyStart) addScore(50);
     addSuspicion(-10);
     showMessage("Camera sees an empty counter...", false, 1.6);
     beep(520, 0.1, "triangle", 0.04);
@@ -517,16 +518,17 @@ function drawRoom(t) {
   ctx.fillRect(410, 132, 58, 92);
   ctx.fillStyle = "#2c2e36";
   ctx.fillRect(496, 254, 28, 24);
-  ctx.fillRect(438, 278, 144, 12);
+  ctx.fillStyle = "#3a2b25";
+  ctx.fillRect(486, 278, 48, groundY - 278);
   ctx.fillStyle = "#765945";
-  drawRoundedRect(388, 290, 246, 30, 5);
+  ctx.fillRect(430, groundY - 34, 160, 34);
+  ctx.fillStyle = "#9a7056";
+  ctx.fillRect(442, groundY - 25, 136, 10);
 
   drawSecurityCamera(t);
+  drawHangingPlant(t);
 
   ctx.fillStyle = "rgba(255,255,255,0.28)";
-  ctx.beginPath();
-  ctx.arc(950, 90, 55 + Math.sin(t * 0.001) * 3, 0, Math.PI * 2);
-  ctx.fill();
 }
 
 function drawSecurityCamera(t) {
@@ -537,6 +539,20 @@ function drawSecurityCamera(t) {
   pixelRect(securityCamera.x + 8, securityCamera.y + 8, 42, 18, "#16191e");
   pixelRect(securityCamera.x + 48, securityCamera.y + 11, 12, 12, blink ? "#f04d45" : "#49c1be");
   pixelRect(securityCamera.x + 8, securityCamera.y + securityCamera.h, 52, 8, "#1e2228");
+}
+
+function drawHangingPlant(t) {
+  const x = 1095;
+  const y = 70;
+  pixelRect(x + 28, y - 8, 6, 62, "#6b4b3e");
+  pixelRect(x + 8, y + 48, 46, 16, "#9b6a4c");
+  pixelRect(x + 14, y + 64, 34, 22, "#7b4f3b");
+  const sway = Math.sin(t * 0.0015) > 0 ? 3 : 0;
+  pixelRect(x, y + 42 + sway, 18, 22, "#4a9a5f");
+  pixelRect(x + 20, y + 34, 16, 30, "#3e8d54");
+  pixelRect(x + 40, y + 43 - sway, 18, 20, "#5aaa67");
+  pixelRect(x + 12, y + 74, 12, 34, "#4a9a5f");
+  pixelRect(x + 34, y + 76, 12, 28, "#3e8d54");
 }
 
 function drawTankPlatform() {
