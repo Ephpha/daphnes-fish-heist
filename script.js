@@ -140,7 +140,7 @@ function resetGame(startPlaying = true) {
   if (startPlaying) {
     state = "playing";
     ui.startScreen.classList.remove("active");
-    showMessage("Daphne emerges from the box...");
+    showMessage("Daphne slips out...");
   }
 }
 
@@ -200,7 +200,7 @@ function grabFish() {
   addSuspicion(stats.fish > 1 && postFishBonusReady ? 20 : 15);
   postFishBonusReady = true;
   nextOwnerCheck = Math.min(nextOwnerCheck, randomBetween(2.2, 4.6) - cameraDifficulty() * 1.1);
-  showMessage("Fish acquired. Back to the box!", false, 1.5);
+  showMessage("Fish snagged. Box time!", false, 1.5);
   beep(740, 0.08, "sine", 0.05);
   beep(980, 0.08, "sine", 0.035);
   updateUi();
@@ -237,7 +237,7 @@ function triggerCamera(reason = "motion") {
     zone: zone.name,
     width: (routeScan ? 30 : 36) + difficulty * (routeScan ? 38 : 42)
   };
-  showMessage(routeScan ? "Camera sweep warming up. Move!" : "Noise triggered the camera!", true, warning.timer);
+  showMessage(routeScan ? "Lens waking. Scoot!" : "Noise woke the lens!", true, warning.timer);
   beep(220, 0.12, "square", 0.04);
 }
 
@@ -274,7 +274,7 @@ function resolveCameraCheck(success = true) {
   if (inSafeZone()) {
     if (warning?.riskyStart) addScore(50);
     addSuspicion(-10);
-    showMessage("Camera sees an empty counter...", false, 1.6);
+    showMessage("Empty counter. Nice.", false, 1.6);
     beep(520, 0.1, "triangle", 0.04);
     nextOwnerCheck = Math.max(1.1, randomCameraDelay() - (stats.suspicion / 100) * 1.4);
   } else if (!success) {
@@ -296,7 +296,7 @@ function gameOver() {
   ui.finalBest.textContent = bestScore;
   ui.finalRank.textContent = rankFor(stats.fish);
   ui.gameOverScreen.classList.add("active");
-  showMessage("Caught on camera!", true, 1);
+  showMessage("Camera caught Daphne!", true, 1);
   beep(120, 0.35, "square", 0.05);
   updateUi();
 }
@@ -347,12 +347,12 @@ function update(dt) {
         addSuspicion(8);
         player.vx = -player.facing * 160;
         player.x += -player.facing * 12;
-        showMessage("Tiny mug bump. Suspicious.", true, 1);
+        showMessage("Mug bonk!", true, 1);
         if (Math.random() < 0.35 + cameraDifficulty() * 0.5) triggerCamera("mug");
         beep(260, 0.08, "square", 0.04);
       } else if (obstacle.type === "keys") {
         addSuspicion(10);
-        showMessage("Jingly evidence!", true, 1);
+        showMessage("Keys tattled!", true, 1);
         if (Math.random() < 0.42 + cameraDifficulty() * 0.48) triggerCamera("keys");
         beep(480, 0.05, "square", 0.035);
       }
@@ -376,7 +376,7 @@ function update(dt) {
     if (postFishBonusReady) {
       addScore(25);
       postFishBonusReady = false;
-      showMessage("Fish hidden. Daphne is innocent.", false, 1.3);
+      showMessage("Fish tucked. So innocent.", false, 1.3);
     }
   } else if (!nearTank()) {
     const safeCenter = safeZone.x + safeZone.w / 2;
@@ -550,7 +550,8 @@ function drawStormWindow(t) {
   const y = 72;
   const w = 180;
   const h = 150;
-  const flash = Math.sin(t * 0.0017) > 0.965 || Math.sin(t * 0.0031 + 2.6) > 0.985;
+  const stormCycle = (t * 0.001) % 9.5;
+  const flash = (stormCycle > 8.55 && stormCycle < 8.68) || (stormCycle > 8.88 && stormCycle < 8.95);
 
   ctx.fillStyle = flash ? "rgba(246, 245, 188, 0.92)" : "rgba(48, 73, 92, 0.76)";
   ctx.fillRect(x, y, w, h);
@@ -864,7 +865,7 @@ function drawCameraLight(t) {
   drawRoundedRect(780, 86, 326, 48, 8);
   ctx.fillStyle = active ? "#8f211b" : "#6b4b16";
   ctx.font = "900 22px 'Courier New', monospace";
-  ctx.fillText(active ? "CAMERA SCANNING!" : "camera warming up...", 812, 117);
+  ctx.fillText(active ? "CAMERA!" : "lens waking...", 812, 117);
 }
 
 function frame(time) {
