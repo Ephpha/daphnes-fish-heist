@@ -789,8 +789,8 @@ window.addEventListener("keydown", (event) => {
   if (["arrowleft", "arrowright", "arrowup", " ", "spacebar"].includes(key)) {
     event.preventDefault();
   }
-  if (key === "a" || key === "arrowleft") setKey("left", true);
-  if (key === "d" || key === "arrowright") setKey("right", true);
+  if (key === "arrowleft") setKey("left", true);
+  if (key === "arrowright") setKey("right", true);
   if (key === "w" || key === "arrowup" || key === " ") jump();
   if (key === "e") grabFish();
   if (key === "r" && state === "gameover") resetGame(true);
@@ -798,8 +798,8 @@ window.addEventListener("keydown", (event) => {
 
 window.addEventListener("keyup", (event) => {
   const key = event.key.toLowerCase();
-  if (key === "a" || key === "arrowleft") setKey("left", false);
-  if (key === "d" || key === "arrowright") setKey("right", false);
+  if (key === "arrowleft") setKey("left", false);
+  if (key === "arrowright") setKey("right", false);
 });
 
 document.getElementById("startButton").addEventListener("click", () => resetGame(true));

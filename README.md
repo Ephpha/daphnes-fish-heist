@@ -6,8 +6,8 @@ Steal fish from the tank, dodge countertop evidence, and hide in the cardboard b
 
 ## Controls
 
-- Move left: `A` or `Left Arrow`
-- Move right: `D` or `Right Arrow`
+- Move left: `Left Arrow`
+- Move right: `Right Arrow`
 - Jump: `W`, `Up Arrow`, or `Spacebar`
 - Grab fish: `E` near the fish tank
 - Restart after game over: `R`
