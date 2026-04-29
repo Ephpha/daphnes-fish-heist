@@ -96,32 +96,49 @@ function startMusic() {
     if (musicTimer) return;
 
     musicGain = audioCtx.createGain();
-    musicGain.gain.value = 0.018;
+    musicGain.gain.value = 0.014;
     musicGain.connect(audioCtx.destination);
 
-    const melody = [659, 0, 784, 0, 880, 784, 659, 0, 587, 0, 659, 0, 784, 659, 523, 0];
+    const melody = [
+      659, 0, 784, 0, 880, 0, 784, 0, 659, 587, 0, 659, 0, 523, 0, 0,
+      587, 0, 659, 0, 784, 659, 0, 587, 523, 0, 587, 0, 659, 0, 0, 0,
+      784, 0, 880, 0, 988, 0, 880, 784, 698, 0, 784, 0, 659, 0, 587, 0,
+      659, 0, 784, 0, 880, 784, 0, 659, 587, 0, 523, 0, 587, 659, 0, 0
+    ];
+    const bass = [
+      165, 0, 0, 0, 196, 0, 0, 0, 220, 0, 0, 0, 196, 0, 0, 0,
+      147, 0, 0, 0, 175, 0, 0, 0, 196, 0, 0, 0, 165, 0, 0, 0,
+      196, 0, 0, 0, 220, 0, 0, 0, 247, 0, 0, 0, 220, 0, 0, 0,
+      165, 0, 0, 0, 196, 0, 0, 0, 175, 0, 0, 0, 147, 0, 0, 0
+    ];
     let step = 0;
     musicTimer = window.setInterval(() => {
       if (state !== "playing") return;
-      const freq = melody[step % melody.length];
+      const index = step % melody.length;
+      const freq = melody[index];
+      const bassFreq = bass[index];
       step += 1;
-      if (!freq) return;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = "square";
-      osc.frequency.value = freq;
-      gain.gain.value = 0.0001;
-      gain.gain.exponentialRampToValueAtTime(0.18, audioCtx.currentTime + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.18);
-      osc.connect(gain);
-      gain.connect(musicGain);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.2);
-    }, 260);
+      if (freq) playMusicTone(freq, 0.2, "square", 0.13);
+      if (bassFreq) playMusicTone(bassFreq, 0.34, "triangle", 0.07);
+    }, 300);
   } catch {
     musicTimer = null;
     musicGain = null;
   }
+}
+
+function playMusicTone(freq, duration, type, volume) {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.value = 0.0001;
+  gain.gain.exponentialRampToValueAtTime(volume, audioCtx.currentTime + 0.018);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(musicGain);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration + 0.02);
 }
 
 function stopMusic() {
