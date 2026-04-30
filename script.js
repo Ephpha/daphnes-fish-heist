@@ -321,7 +321,7 @@ function triggerCamera(reason = "motion") {
 
 function forceCameraOnDaphne() {
   if (state !== "playing") return;
-  const targetX = clamp(player.x + player.w / 2, 210, 1045);
+  const targetX = clamp(player.x + player.w / 2, 210, 1160);
   if (!warning) {
     triggerCamera("daphne");
     return;
@@ -358,9 +358,9 @@ function chooseCameraZone(reason) {
   if (reason === "keys") return cameraZones.find((zone) => zone.name === "keys");
   if (reason === "spill") return cameraZones.find((zone) => zone.name === "spill");
   if (reason === "tank") return { name: "tank", x: clamp(player.x + player.w / 2 + 55, 1035, 1135) };
-  if (reason === "daphne") return { name: "daphne", x: clamp(player.x + player.w / 2, 210, 1045) };
-  if (postFishBonusReady && stats.suspicion > 55) return { name: "return", x: clamp(player.x + player.w / 2, 230, 1020) };
-  if (stats.suspicion > 82 && Math.random() < 0.65) return { name: "attention", x: clamp(player.x + player.w / 2, 230, 1020) };
+  if (reason === "daphne") return { name: "daphne", x: clamp(player.x + player.w / 2, 210, 1160) };
+  if (postFishBonusReady && stats.suspicion > 55) return { name: "return", x: clamp(player.x + player.w / 2, 230, 1125) };
+  if (stats.suspicion > 82 && Math.random() < 0.65) return { name: "attention", x: clamp(player.x + player.w / 2, 230, 1125) };
 
   const candidates = stats.score < 450
     ? cameraZones.filter((zone) => zone.name === "mug" || zone.name === "keys" || zone.name === "spill")
@@ -541,6 +541,10 @@ function cameraSeesDaphne() {
   const px = rect.x + rect.w / 2;
   const py = rect.y + rect.h / 2;
 
+  if (warning.zone === "daphne" && stats.suspicion >= 95 && nearTank() && warning.active > warning.escapeGrace) {
+    return true;
+  }
+
   if (warning.zone === "tank") {
     if (warning.active < warning.escapeGrace && player.vx < -25) return false;
     if (px < tank.x - 70 && warning.active < warning.escapeGrace + 0.65) return false;
@@ -548,10 +552,19 @@ function cameraSeesDaphne() {
 
   const cameraX = securityCamera.x + securityCamera.w / 2;
   const cameraY = securityCamera.y + securityCamera.h;
-  const progress = clamp((py - cameraY) / (groundY - cameraY), 0, 1);
-  const beamCenter = cameraX + (warning.beamX - cameraX) * progress;
-  const halfWidth = warning.width * (0.55 + progress * 0.55);
-  return Math.abs(px - beamCenter) < halfWidth;
+  const samplePoints = [
+    { x: rect.x + rect.w * 0.18, y: py },
+    { x: px, y: py },
+    { x: rect.x + rect.w * 0.82, y: py },
+    { x: px, y: rect.y + rect.h * 0.82 }
+  ];
+
+  return samplePoints.some((point) => {
+    const progress = clamp((point.y - cameraY) / (groundY - cameraY), 0, 1);
+    const beamCenter = cameraX + (warning.beamX - cameraX) * progress;
+    const halfWidth = warning.width * (0.7 + progress * 0.7);
+    return Math.abs(point.x - beamCenter) < halfWidth;
+  });
 }
 
 function landOnSurfaces(dt) {
